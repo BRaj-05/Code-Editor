@@ -33,7 +33,7 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# local artifacts
+# local artifacts and generated output
 .agents/
 .claude/
 .windsurf/
@@ -41,7 +41,7 @@ yarn-error.log*
 auth.zip
 output/
 
-# vercel
+# vercel deployment files
 .vercel
 
 # typescript

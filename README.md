@@ -67,6 +67,58 @@ NEXTAUTH_URL="http://localhost:3000"
 
 If your AI model backend requires custom credentials or settings, configure those in your local model service instead of this repo.
 
+## `.gitignore` explanation
+
+The project includes a `.gitignore` file so only source code and configuration are committed. It intentionally excludes:
+
+- dependency folders and build artifacts (`node_modules`, `.next`, `out`, `build`)
+- local environment files (`.env*`)
+- system/editor noise (`.DS_Store`, log files, `*.pem`)
+- generated app output and temporary archives (`output/`, `.next.zip`, `auth.zip`)
+- local AI tooling and workspace files (`.agents/`, `.claude/`, `.windsurf/`)
+- TypeScript cache files (`*.tsbuildinfo`, `next-env.d.ts`)
+
+### Example `.gitignore`
+
+```gitignore
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+/coverage
+/.next/
+/out/
+/build
+
+.DS_Store
+*.pem
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+.env*
+
+.agents/
+.claude/
+.windsurf/
+.next.zip
+auth.zip
+output/
+
+.vercel
+
+*.tsbuildinfo
+next-env.d.ts
+
+/lib/generated/prisma
+```
+
 ## How it helps
 
 VibeCode Editor accelerates developer workflows by combining:
@@ -77,6 +129,100 @@ VibeCode Editor accelerates developer workflows by combining:
 - project and workspace management
 
 It is designed to help developers experiment quickly, learn from AI guidance, and prototype frontend/backend code in a unified interface.
+
+## Detailed code flow and how to add code
+
+### 1. App entry and layout
+
+The project uses the Next.js App Router. The main app layout is in `app/layout.tsx`, which wraps all pages with:
+
+- `SessionProvider` from `next-auth` for authentication state
+- `ThemeProvider` for light/dark theme support
+- `Toaster` for notification messages
+
+This ensures every page has access to session state and consistent UI behavior.
+
+### 2. Dashboard and playground flow
+
+- `app/dashboard/page.tsx` loads user playgrounds using `getAllPlaygroundForUser()` from `modules/dashboard/actions`.
+- `app/playground/[id]/page.tsx` loads a single playground and template data using `usePlayground()`.
+- The playground page uses `useFileExplorer()` and `useWebContainer()` to manage file state and preview.
+
+To add a new page or feature:
+
+1. Create a new file in `app/` or `app/<route>/page.tsx`.
+2. Add a React component and export it as default.
+3. Use existing UI components from `components/ui/` for consistency.
+
+Example:
+
+```tsx
+// app/new-feature/page.tsx
+import { Button } from "@/components/ui/button";
+
+export default function NewFeaturePage() {
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold">New Feature</h1>
+      <Button>Start</Button>
+    </div>
+  );
+}
+```
+
+### 3. AI chat and code completion APIs
+
+The backend API endpoints are in `app/api/`:
+
+- `app/api/chat/route.ts` receives chat messages and forwards them to a local AI backend at `http://localhost:11434/api/generate`.
+- `app/api/code-completion/route.ts` receives editor context and returns inline suggestions.
+- `app/api/template/[id]/route.ts` loads starter templates and returns file structure as JSON.
+
+Example request to chat endpoint:
+
+```ts
+const res = await fetch("/api/chat", {
+  method: "POST",
+  body: JSON.stringify({
+    message: "Explain this code",
+    history: [],
+  }),
+});
+const data = await res.json();
+console.log(data.response);
+```
+
+### 4. Working with templates
+
+Template paths are defined in `lib/template.ts`. The app loads starter code from those folders and converts them into a JSON structure for the editor.
+
+To add a new starter template:
+
+1. Add a folder for the starter in the project root, for example `vibecode-starters/my-template`.
+2. Update `lib/template.ts`:
+
+```ts
+export const templatePaths = {
+  ...
+  MY_TEMPLATE: "/vibecode-starters/my-template",
+}
+```
+
+3. Add support in the UI or template selector if needed.
+
+### 5. Authentication and database
+
+- `app/api/auth/[...nextauth]/route.ts` exports NextAuth handlers from `auth.ts`.
+- `Prisma` is used for database access in `lib/db.ts` and playground actions.
+
+To add a new authenticated API route, create an endpoint under `app/api/` and protect it with session checks.
+
+### 6. Best practices for extending this project
+
+- Keep UI components reusable under `components/ui/`.
+- Put business logic in `modules/*` so feature code stays organized.
+- Use `lib/` for shared utilities and constants.
+- Keep API routes lightweight and delegate complex logic to helpers.
 
 ## Cleanup and GitHub readiness
 
