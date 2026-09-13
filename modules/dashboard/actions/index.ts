@@ -5,6 +5,20 @@
 import { db } from "@/lib/db";
 import { currentUser } from "@/modules/auth/actions";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
+
+const loadPlaygroundsForUser = cache(async (userId: string) =>
+  db.playground.findMany({
+    where: { userId },
+    include: {
+      user: true,
+      Starmark: {
+        where: { userId },
+        select: { isMarked: true },
+      },
+    },
+  }),
+);
 
 export const toggleStarMarked = async (
   playgroundId: string,
@@ -20,7 +34,7 @@ export const toggleStarMarked = async (
     if (isChecked) {
       await db.starMark.create({
         data: {
-          userId: userId!,
+          userId,
           playgroundId,
           isMarked: isChecked,
         },
@@ -47,26 +61,10 @@ export const toggleStarMarked = async (
 
 export const getAllPlaygroundForUser = async () => {
   const user = await currentUser();
+  if (!user?.id) return [];
 
   try {
-    const playground = await db.playground.findMany({
-      where: {
-        userId: user?.id,
-      },
-      include: {
-        user: true,
-        Starmark:{
-            where:{
-                userId:user?.id!
-            },
-            select:{
-                isMarked:true
-            }
-        }
-      },
-    });
-
-    return playground;
+    return await loadPlaygroundsForUser(user.id);
   } catch (error) {
     console.log(error);
   }
@@ -78,6 +76,9 @@ export const createPlayground = async (data: {
   description?: string;
 }) => {
   const user = await currentUser();
+  if (!user?.id) {
+    throw new Error("You must be signed in to create a playground");
+  }
 
   const { template, title, description } = data;
 
@@ -87,7 +88,7 @@ export const createPlayground = async (data: {
         title: title,
         description: description,
         template: template,
-        userId: user?.id!,
+        userId: user.id,
       },
     });
 
@@ -154,4 +155,3 @@ export const duplicateProjectById = async (id: string) => {
     console.error("Error duplicating project:", error);
   }
 };
- 

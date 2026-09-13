@@ -42,7 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   MoreHorizontal,
   Edit3,
@@ -51,6 +51,7 @@ import {
   Copy,
   Download,
   Eye,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { MarkedToggleButton } from "./marked-toggle";
@@ -86,6 +87,13 @@ export default function ProjectTable({
     description: "",
   });
   const [isLoading, setIsLoading] = useState(false);
+  const [query, setQuery] = useState("");
+  const [framework, setFramework] = useState("ALL");
+  const [sort, setSort] = useState<"recent" | "name">("recent");
+  const filteredProjects = useMemo(() => projects.filter(project =>
+    (!query || `${project.title} ${project.description ?? ""}`.toLowerCase().includes(query.toLowerCase())) &&
+    (framework === "ALL" || project.template === framework)
+  ).sort((a, b) => sort === "name" ? a.title.localeCompare(b.title) : new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()), [projects, query, framework, sort]);
  
 
   const handleEditClick = (project: Project) => {
@@ -118,10 +126,6 @@ export default function ProjectTable({
     } finally {
       setIsLoading(false);
     }
-  };
-
-  const handleMarkasFavorite = async (project: Project) => {
-    //    Write your logic here
   };
 
   const handleDeleteProject = async () => {
@@ -164,6 +168,11 @@ export default function ProjectTable({
 
   return (
     <>
+      <div className="mb-5 flex flex-col gap-3 xl:flex-row xl:items-center">
+        <label className="flex h-9 min-w-64 items-center gap-2 rounded-sm border bg-background px-3"><Search size={14} className="text-muted-foreground"/><span className="sr-only">Search projects</span><input className="w-full bg-transparent text-sm outline-none" placeholder="Search projects..." value={query} onChange={event => setQuery(event.target.value)} /></label>
+        <div className="flex flex-wrap gap-1">{["ALL","REACT","NEXTJS","VUE","ANGULAR","EXPRESS","HONO"].map(item => <button key={item} className={`rounded-sm border px-2.5 py-1.5 text-[11px] ${framework === item ? "border-red-500 bg-red-500/10 text-red-500" : "text-muted-foreground"}`} onClick={() => setFramework(item)}>{item === "NEXTJS" ? "Next.js" : item[0] + item.slice(1).toLowerCase()}</button>)}</div>
+        <select aria-label="Sort projects" className="h-9 rounded-sm border bg-background px-2 text-xs xl:ml-auto" value={sort} onChange={event => setSort(event.target.value as "recent" | "name")}><option value="recent">Recently edited</option><option value="name">Name</option></select>
+      </div>
       <div className="border rounded-lg overflow-hidden">
         <Table>
           <TableHeader>
@@ -176,7 +185,7 @@ export default function ProjectTable({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {projects.map((project) => (
+            {filteredProjects.map((project) => (
               <TableRow key={project.id}>
                 <TableCell className="font-medium">
                   <div className="flex flex-col">

@@ -5,6 +5,7 @@ export function findFilePath(
   folder: TemplateFolder,
   pathSoFar: string[] = []
 ): string | null {
+  if (file.path) return file.path;
   for (const item of folder.items) {
     if ("folderName" in item) {
       const res = findFilePath(file, item, [...pathSoFar, item.folderName]);
@@ -42,6 +43,20 @@ export const generateFileId = (file: TemplateFile, rootFolder: TemplateFolder): 
 
   // Combine path and filename
   return path
-    ? `${path}/${file.filename}${extensionSuffix}`
+    ? path
     : `${file.filename}${extensionSuffix}`;
+}
+
+export function listProjectFiles(folder: TemplateFolder, prefix = ""): TemplateFile[] {
+  return folder.items.flatMap(item => "folderName" in item
+    ? listProjectFiles(item, `${prefix}${item.folderName}/`)
+    : [{ ...item, path: `${prefix}${item.filename}${item.fileExtension ? `.${item.fileExtension}` : ""}` }]);
+}
+
+export function updateProjectFile(folder: TemplateFolder, path: string, content: string, prefix = ""): TemplateFolder {
+  return { ...folder, items: folder.items.map(item => {
+    if ("folderName" in item) return updateProjectFile(item, path, content, `${prefix}${item.folderName}/`);
+    const itemPath = `${prefix}${item.filename}${item.fileExtension ? `.${item.fileExtension}` : ""}`;
+    return itemPath === path ? { ...item, content } : item;
+  }) };
 }

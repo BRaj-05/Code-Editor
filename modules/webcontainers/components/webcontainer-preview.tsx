@@ -1,368 +1,77 @@
 "use client";
-import React, { useEffect, useState, useRef } from "react";
-
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { ExternalLink, Monitor, Play, RotateCw, Smartphone, Square, Tablet, Terminal, ChevronDown } from "lucide-react";
+import type { WebContainer } from "@webcontainer/api";
+import type { TemplateFolder } from "@/modules/playground/lib/path-to-json";
 import { transformToWebContainerFormat } from "../hooks/transformer";
-import { CheckCircle, Loader2, XCircle } from "lucide-react";
-import { Progress } from "@/components/ui/progress";
+import { getRuntime, type RuntimeState } from "../lib/runtime";
+import TerminalComponent, { type TerminalRef } from "./terminal";
 
-import { WebContainer } from "@webcontainer/api";
-import { TemplateFolder } from "@/modules/playground/lib/path-to-json";
-import TerminalComponent from "./terminal";
-
-interface WebContainerPreviewProps {
+const idle: RuntimeState = { stage: "idle", url: "", command: "", error: null, timings: {} };
+const noopSubscribe = () => () => {};
+const idleSnapshot = () => idle;
+interface Props {
   templateData: TemplateFolder;
-  serverUrl: string;
+  instance: WebContainer | null;
   isLoading: boolean;
   error: string | null;
-  instance: WebContainer | null;
-  writeFileSync: (path: string, content: string) => Promise<void>;
-  forceResetup?: boolean; // Optional prop to force re-setup
+  serverUrl?: string;
+  writeFileSync?: (path: string, content: string) => Promise<void>;
+  forceResetup?: boolean;
 }
-const WebContainerPreview = ({
-  templateData,
-  error,
-  instance,
-  isLoading,
-  serverUrl,
-  writeFileSync,
-  forceResetup = false,
-}: WebContainerPreviewProps) => {
-  const [previewUrl, setPreviewUrl] = useState<string>("");
-  const [loadingState, setLoadingState] = useState({
-    transforming: false,
-    mounting: false,
-    installing: false,
-    starting: false,
-    ready: false,
-  });
-  const [currentStep, setCurrentStep] = useState(0);
-  const totalSteps = 4;
-  const [setupError, setSetupError] = useState<string | null>(null);
-  const [isSetupComplete, setIsSetupComplete] = useState(false);
-  const [isSetupInProgress, setIsSetupInProgress] = useState(false);
 
-  const terminalRef = useRef<any>(null);
-
-  // Reset setup state when forceResetup changes
+export default function WebContainerPreview({ templateData, instance, isLoading, error }: Props) {
+  const runtime = instance ? getRuntime(instance) : null;
+  const state = useSyncExternalStore(runtime?.subscribe ?? noopSubscribe, runtime?.getSnapshot ?? idleSnapshot, idleSnapshot);
+  const terminal = useRef<TerminalRef>(null);
+  const [device, setDevice] = useState("desktop");
+  const [revision, setRevision] = useState(0);
+  const [panel, setPanel] = useState<"terminal" | "output">("terminal");
+  const [expanded, setExpanded] = useState(true);
+  const [output, setOutput] = useState("");
+  const failed = error || state.error;
+  const stage = failed ? "error" : isLoading ? "booting" : state.stage;
+  const busy = ["booting", "mounting", "installing", "starting"].includes(stage);
+  useEffect(() => runtime?.subscribeOutput(chunk => {
+    terminal.current?.writeToTerminal(chunk);
+    setOutput(previous => (previous + chunk).slice(-100000));
+  }), [runtime]);
   useEffect(() => {
-    if (forceResetup) {
-      setIsSetupComplete(false);
-      setIsSetupInProgress(false);
-      setPreviewUrl("");
-      setCurrentStep(0);
-      setLoadingState({
-        transforming: false,
-        mounting: false,
-        installing: false,
-        starting: false,
-        ready: false,
-      });
-    }
-  }, [forceResetup]);
-
-  useEffect(() => {
-    async function setupContainer() {
-      if (!instance || isSetupComplete || isSetupInProgress) return;
-
-      try {
-        setIsSetupInProgress(true);
-        setSetupError(null);
-
-        try {
-          const packageJsonExists = await instance.fs.readFile(
-            "package.json",
-            "utf8"
-          );
-
-          if (packageJsonExists) {
-            // Files are already mounted, just reconnect to existing server
-            if (terminalRef.current?.writeToTerminal) {
-              terminalRef.current.writeToTerminal(
-                "🔄 Reconnecting to existing WebContainer session...\r\n"
-              );
-            }
-
-            instance.on("server-ready", (port: number, url: string) => {
-              if (terminalRef.current?.writeToTerminal) {
-                terminalRef.current.writeToTerminal(
-                  `🌐 Reconnected to server at ${url}\r\n`
-                );
-              }
-
-              setPreviewUrl(url);
-              setLoadingState((prev) => ({
-                ...prev,
-                starting: false,
-                ready: true,
-              }));
-            });
-
-            setCurrentStep(4);
-            setLoadingState((prev) => ({ ...prev, starting: true }));
-            return;
-          }
-        } catch (error) {}
-
-        // Step-1 transform data
-        setLoadingState((prev) => ({ ...prev, transforming: true }));
-        setCurrentStep(1);
-        // Write to terminal
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(
-            "🔄 Transforming template data...\r\n"
-          );
-        }
-
-        // @ts-ignore
-        const files = transformToWebContainerFormat(templateData);
-        setLoadingState((prev) => ({
-          ...prev,
-          transforming: false,
-          mounting: true,
-        }));
-        setCurrentStep(2);
-
-        //  Step-2 Mount Files
-
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(
-            "📁 Mounting files to WebContainer...\r\n"
-          );
-        }
-        await instance.mount(files);
-
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(
-            "✅ Files mounted successfully\r\n"
-          );
-        }
-        setLoadingState((prev) => ({
-          ...prev,
-          mounting: false,
-          installing: true,
-        }));
-        setCurrentStep(3);
-
-        // Step-3 Install dependencies
-
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(
-            "📦 Installing dependencies...\r\n"
-          );
-        }
-
-        const installProcess = await instance.spawn("npm", ["install"]);
-
-        installProcess.output.pipeTo(
-          new WritableStream({
-            write(data) {
-              if (terminalRef.current?.writeToTerminal) {
-                terminalRef.current.writeToTerminal(data);
-              }
-            },
-          })
-        );
-
-        const installExitCode = await installProcess.exit;
-
-        if (installExitCode !== 0) {
-          throw new Error(
-            `Failed to install dependencies. Exit code: ${installExitCode}`
-          );
-        }
-
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(
-            "✅ Dependencies installed successfully\r\n"
-          );
-        }
-
-        setLoadingState((prev) => ({
-          ...prev,
-          installing: false,
-          starting: true,
-        }));
-        setCurrentStep(4);
-
-        // STEP-4 Start The Server
-
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(
-            "🚀 Starting development server...\r\n"
-          );
-        }
-
-        const startProcess = await instance.spawn("npm", ["run", "start"]);
-
-        instance.on("server-ready", (port: number, url: string) => {
-          if (terminalRef.current?.writeToTerminal) {
-            terminalRef.current.writeToTerminal(
-              `🌐 Server ready at ${url}\r\n`
-            );
-          }
-          setPreviewUrl(url);
-          setLoadingState((prev) => ({
-            ...prev,
-            starting: false,
-            ready: true,
-          }));
-          setIsSetupComplete(true);
-          setIsSetupInProgress(false);
-        });
-
-        // Handle start process output - stream to terminal
-        startProcess.output.pipeTo(
-          new WritableStream({
-            write(data) {
-              if (terminalRef.current?.writeToTerminal) {
-                terminalRef.current.writeToTerminal(data);
-              }
-            },
-          })
-        );
-      } catch (err) {
-        console.error("Error setting up container:", err);
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        if (terminalRef.current?.writeToTerminal) {
-          terminalRef.current.writeToTerminal(`❌ Error: ${errorMessage}\r\n`);
-        }
-        setSetupError(errorMessage);
-        setIsSetupInProgress(false);
-        setLoadingState({
-          transforming: false,
-          mounting: false,
-          installing: false,
-          starting: false,
-          ready: false,
-        });
-      }
-    }
-
-    setupContainer();
-  }, [instance, templateData, isSetupComplete, isSetupInProgress]);
-
-  useEffect(() => {
-    return () => {};
+    const toggle = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "j") { event.preventDefault(); setExpanded(value => !value); }
+    };
+    window.addEventListener("keydown", toggle);
+    return () => window.removeEventListener("keydown", toggle);
   }, []);
+  const run = () => { if (runtime) void runtime.sync(transformToWebContainerFormat(templateData), true); };
 
-  if (isLoading) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center space-y-4 max-w-md p-6 rounded-lg bg-gray-50 dark:bg-gray-900">
-          <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
-          <h3 className="text-lg font-medium">Initializing WebContainer</h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Setting up the environment for your project...
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  if (error || setupError) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 p-6 rounded-lg max-w-md">
-          <div className="flex items-center gap-2 mb-3">
-            <XCircle className="h-5 w-5" />
-            <h3 className="font-semibold">Error</h3>
-          </div>
-          <p className="text-sm">{error || setupError}</p>
-        </div>
-      </div>
-    );
-  }
-  const getStepIcon = (stepIndex: number) => {
-    if (stepIndex < currentStep) {
-      return <CheckCircle className="h-5 w-5 text-green-500" />;
-    } else if (stepIndex === currentStep) {
-      return <Loader2 className="h-5 w-5 animate-spin text-blue-500" />;
-    } else {
-      return <div className="h-5 w-5 rounded-full border-2 border-gray-300" />;
-    }
-  };
-
-  const getStepText = (stepIndex: number, label: string) => {
-    const isActive = stepIndex === currentStep;
-    const isComplete = stepIndex < currentStep;
-
-    return (
-      <span
-        className={`text-sm font-medium ${
-          isComplete
-            ? "text-green-600"
-            : isActive
-            ? "text-blue-600"
-            : "text-gray-500"
-        }`}
-      >
-        {label}
-      </span>
-    );
-  };
-
-  return (
-    <div className="h-full w-full flex flex-col">
-      {!previewUrl ? (
-        <div className="h-full flex flex-col">
-          <div className="w-full max-w-md p-6 m-5 rounded-lg bg-white dark:bg-zinc-800 shadow-sm mx-auto">
-            <Progress
-              value={(currentStep / totalSteps) * 100}
-              className="h-2 mb-6"
-            />
-
-            <div className="space-y-4 mb-6">
-              <div className="flex items-center gap-3">
-                {getStepIcon(1)}
-                {getStepText(1, "Transforming template data")}
-              </div>
-              <div className="flex items-center gap-3">
-                {getStepIcon(2)}
-                {getStepText(2, "Mounting files")}
-              </div>
-              <div className="flex items-center gap-3">
-                {getStepIcon(3)}
-                {getStepText(3, "Installing dependencies")}
-              </div>
-              <div className="flex items-center gap-3">
-                {getStepIcon(4)}
-                {getStepText(4, "Starting development server")}
-              </div>
-            </div>
-          </div>
-
-          {/* Terminal */}
-          <div className="flex-1 p-4">
-            <TerminalComponent
-              ref={terminalRef}
-              webContainerInstance={instance}
-              theme="dark"
-              className="h-full"
-            />
-          </div>
-        </div>
-      ) : (
-        <div className="h-full flex flex-col">
-          <div className="flex-1">
-            <iframe
-              src={previewUrl}
-              className="w-full h-full border-none"
-              title="WebContainer Preview"
-            />
-          </div>
-
-          <div className="h-64 border-t">
-            <TerminalComponent
-              ref={terminalRef}
-              webContainerInstance={instance}
-              theme="dark"
-              className="h-full"
-            />
-          </div>
-        </div>
-      )}
+  return <section className="flex h-full min-h-0 min-w-0 flex-col bg-background" aria-label="Live preview">
+    <div className="flex min-h-10 flex-wrap items-center gap-1 border-b px-2 text-xs">
+      <span className="mr-auto flex items-center gap-2 font-medium"><span className={`h-2 w-2 rounded-full ${stage === "ready" ? "bg-emerald-500" : stage === "error" ? "bg-red-500" : busy ? "animate-pulse bg-amber-400" : "bg-zinc-500"}`} />{stage.toUpperCase()}</span>
+      <button className="ide-icon" title="Run or restart server" aria-label="Run or restart server" disabled={!runtime || busy} onClick={run}><Play size={14} /></button>
+      <button className="ide-icon" title="Stop server" aria-label="Stop server" disabled={!runtime || !busy && stage !== "ready"} onClick={() => runtime?.stop()}><Square size={13} /></button>
+      <button className="ide-icon" title="Refresh preview" aria-label="Refresh preview" disabled={!state.url} onClick={() => setRevision(value => value + 1)}><RotateCw size={14} /></button>
+      {([ ["desktop", Monitor], ["tablet", Tablet], ["mobile", Smartphone] ] as const).map(([name, Icon]) => <button key={name} className="ide-icon" title={`${name} preview`} aria-label={`${name} preview`} aria-pressed={device === name} onClick={() => setDevice(name)}><Icon size={14} /></button>)}
+      <button className="ide-icon" title="Open preview in new tab" aria-label="Open preview in new tab" disabled={!state.url} onClick={() => window.open(state.url, "_blank", "noopener,noreferrer")}><ExternalLink size={14} /></button>
     </div>
-  );
-};
-
-export default WebContainerPreview;
+    <div className="truncate border-b px-3 py-1.5 font-mono text-[11px] text-muted-foreground">{state.url || state.command || "Browser runtime"}</div>
+    <div className="flex min-h-0 flex-1 justify-center overflow-auto bg-muted/20">
+      {state.url && !failed ? <iframe key={revision} src={state.url} title="Project preview" className="h-full max-w-full border-0 bg-white transition-[width] duration-200" style={{ width: device === "desktop" ? "100%" : device === "tablet" ? 768 : 390 }} /> :
+        <div className="w-full max-w-md self-center p-5 text-sm" aria-live="polite">
+          <h2 className="mb-3 font-semibold">{failed ? "Environment needs attention" : stage === "stopped" ? "Server stopped" : "Environment"}</h2>
+          {failed ? <><p className="break-words text-red-500">{failed}</p><button className="mt-4 flex items-center gap-2 rounded border px-3 py-2" onClick={runtime ? run : () => window.location.reload()}><RotateCw size={14} />Retry</button></> :
+            ["booting", "mounting", "installing", "starting"].map(name => <div key={name} className="flex justify-between border-b py-2 text-xs text-muted-foreground"><span className={name === stage ? "text-foreground" : ""}>{name === "booting" ? "Initializing runtime" : name === "mounting" ? "Mounting files" : name === "installing" ? "Installing dependencies" : "Starting server"}</span><span>{state.timings[name] !== undefined ? `${(state.timings[name] / 1000).toFixed(1)}s` : name === stage ? "Running" : "-"}</span></div>)}
+        </div>}
+    </div>
+    <div className="flex h-9 shrink-0 items-center gap-4 border-t px-3 text-[11px]">
+      <button className={panel === "terminal" ? "border-b-2 border-red-500 py-2" : "text-muted-foreground"} onClick={() => { setPanel("terminal"); setExpanded(true); }}><Terminal size={12} className="mr-1 inline" />TERMINAL</button>
+      <button className={panel === "output" ? "border-b-2 border-red-500 py-2" : "text-muted-foreground"} onClick={() => { setPanel("output"); setExpanded(true); }}>OUTPUT</button>
+      <span className="ml-auto truncate text-muted-foreground">{state.command}</span>
+      <button className="ide-icon" title="Toggle terminal panel" aria-label="Toggle terminal panel" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}><ChevronDown size={14} /></button>
+    </div>
+    <div className={expanded ? "h-56 min-h-24 shrink-0 overflow-hidden" : "hidden"}>
+      <div className={panel === "terminal" ? "h-full" : "hidden"}><TerminalComponent ref={terminal} webContainerInstance={instance} theme="dark" className="h-full" /></div>
+      {panel === "output" && <pre className="h-full overflow-auto whitespace-pre-wrap break-all p-3 text-xs">{output.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "") || "No runtime output yet."}</pre>}
+    </div>
+  </section>;
+}

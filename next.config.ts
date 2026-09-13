@@ -3,15 +3,14 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   reactCompiler: true,
   images: {
-    domains: ["lh3.googleusercontent.com"],
-    remotePatterns:[
+    remotePatterns: [
       {
         protocol: "https",
-        hostname: "*",
+        hostname: "lh3.googleusercontent.com",
         port: "",
-        pathname: "/**"
-      }
-    ]
+        pathname: "/**",
+      },
+    ],
   },
    async headers() {
     return [

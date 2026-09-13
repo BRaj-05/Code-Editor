@@ -84,7 +84,7 @@ export const useFileExplorer = create<FileExplorerState>((set, get) => ({
 
   setTemplateData: (data) => set({ templateData: data }),
   setPlaygroundId(id) {
-    set({ playgroundId: id });
+    if (get().playgroundId !== id) set({ playgroundId: id, openFiles: [], activeFileId: null, templateData: null });
   },
   setEditorContent: (content) => set({ editorContent: content }),
   setOpenFiles: (files) => set({ openFiles: files }),
@@ -339,8 +339,8 @@ export const useFileExplorer = create<FileExplorerState>((set, get) => ({
     if (!templateData) return;
 
     // Generate old and new file IDs using the same logic as openFile
-    const oldFileId = generateFileId(file, templateData);
-    const newFile = { ...file, filename: newFilename, fileExtension: newExtension };
+    const oldFileId = `${parentPath ? `${parentPath}/` : ""}${file.filename}${file.fileExtension ? `.${file.fileExtension}` : ""}`;
+    const newFile = { ...file, filename: newFilename, fileExtension: newExtension, path: `${parentPath ? `${parentPath}/` : ""}${newFilename}${newExtension ? `.${newExtension}` : ""}` };
     const newFileId = generateFileId(newFile, templateData);
 
     try {

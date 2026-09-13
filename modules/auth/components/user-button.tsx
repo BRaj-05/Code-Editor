@@ -10,19 +10,39 @@ import {
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { LogOut, User } from "lucide-react";
+import { LogIn, LogOut, User } from "lucide-react";
 import LogoutButton from "./logout-button";
-import { useCurrentUser } from "@/modules/auth/hooks/use-current-user";
+import { useSession } from "next-auth/react";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
 
 const UserButton = () => {
-  const user = useCurrentUser();
+  const { data: session, status } = useSession();
+  const user = session?.user;
+
+  if (status === "loading") {
+    return <div className="size-9" aria-hidden="true" />;
+  }
+
+  if (!user) {
+    return (
+      <Button asChild variant="ghost" size="icon">
+        <Link href="/auth/sign-in" aria-label="Sign in">
+          <LogIn className="h-5 w-5" />
+        </Link>
+      </Button>
+    );
+  }
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger>
+      <DropdownMenuTrigger aria-label="Open user menu">
         <div className={cn("relative rounded-full")}>
           <Avatar>
-            <AvatarImage src={user?.image!} alt={user?.name!} />
+            <AvatarImage
+              src={user.image ?? undefined}
+              alt={user.name ?? "User"}
+            />
             <AvatarFallback className="bg-red-500">
               <User className="text-white" />
             </AvatarFallback>
@@ -32,7 +52,7 @@ const UserButton = () => {
 
       <DropdownMenuContent className="mr-4">
         <DropdownMenuItem>
-          <span>{user?.email}</span>
+          <span>{user.email}</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <LogoutButton>

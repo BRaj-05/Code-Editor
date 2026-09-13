@@ -1,59 +1,10 @@
-interface TemplateItem {
-  filename: string;
-  fileExtension: string;
-  content: string;
-  folderName?: string;
-  items?: TemplateItem[];
+import type { FileSystemTree } from "@webcontainer/api";
+import type { TemplateFolder } from "@/modules/playground/lib/path-to-json";
+
+export function transformToWebContainerFormat(template: TemplateFolder): FileSystemTree {
+  return Object.fromEntries(template.items.map(item => {
+    if ("folderName" in item) return [item.folderName, { directory: transformToWebContainerFormat(item) }];
+    const name = item.fileExtension ? `${item.filename}.${item.fileExtension}` : item.filename;
+    return [name, { file: { contents: item.content } }];
+  }));
 }
-
-interface WebContainerFile {
-  file: {
-    contents: string;
-  };
-}
-
-interface WebContainerDirectory {
-  directory: {
-    [key: string]: WebContainerFile | WebContainerDirectory;
-  };
-}
-
-type WebContainerFileSystem = Record<string, WebContainerFile | WebContainerDirectory>;
-
-export function transformToWebContainerFormat(template: { folderName: string; items: TemplateItem[] }): WebContainerFileSystem {
-  function processItem(item: TemplateItem): WebContainerFile | WebContainerDirectory {
-    if (item.folderName && item.items) {
-      // This is a directory
-      const directoryContents: WebContainerFileSystem = {};
-      
-      item.items.forEach(subItem => {
-        const key = subItem.fileExtension 
-          ? `${subItem.filename}.${subItem.fileExtension}`
-          : subItem.folderName!;
-        directoryContents[key] = processItem(subItem);
-      });
-
-      return {
-        directory: directoryContents
-      };
-    } else {
-      // This is a file
-      return {
-        file: {
-          contents: item.content
-        }
-      };
-    }
-  }
-
-  const result: WebContainerFileSystem = {};
-  
-  template.items.forEach(item => {
-    const key = item.fileExtension 
-      ? `${item.filename}.${item.fileExtension}`
-      : item.folderName!;
-    result[key] = processItem(item);
-  });
-
-  return result;
-}1

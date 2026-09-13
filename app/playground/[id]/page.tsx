@@ -29,6 +29,11 @@ import { useAISuggestions } from "@/modules/playground/hooks/useAISuggestion";
 import { useFileExplorer } from "@/modules/playground/hooks/useFileExplorer";
 import { usePlayground } from "@/modules/playground/hooks/usePlayground";
 import { findFilePath } from "@/modules/playground/lib";
+import { getEditorLanguage } from "@/modules/playground/lib/editor-config";
+import { listProjectFiles, updateProjectFile } from "@/modules/playground/lib";
+import { IdeCommandCenter, defaultIdeSettings, type EditorSettings } from "@/modules/playground/components/ide-command-center";
+import { getRuntime } from "@/modules/webcontainers/lib/runtime";
+import { transformToWebContainerFormat } from "@/modules/webcontainers/hooks/transformer";
 import {
   TemplateFile,
   TemplateFolder,
@@ -37,7 +42,6 @@ import WebContainerPreview from "@/modules/webcontainers/components/webcontainer
 import { useWebContainer } from "@/modules/webcontainers/hooks/useWebContainer";
 import {
   AlertCircle,
-  Bot,
   FileText,
   FolderOpen,
   Save,
@@ -48,7 +52,6 @@ import { useParams } from "next/navigation";
 import React, {
   useCallback,
   useEffect,
-  useReducer,
   useRef,
   useState,
 } from "react";
@@ -57,13 +60,17 @@ import { toast } from "sonner";
 const MainPlaygroundPage = () => {
   const { id } = useParams<{ id: string }>();
   const [isPreviewVisible, setIsPreviewVisible] = useState(true);
+  const [focusMode, setFocusMode] = useState(false);
+  const [cursor, setCursor] = useState({ line: 1, column: 1 });
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>(() => {
+    if (typeof window === "undefined") return defaultIdeSettings;
+    const stored = window.localStorage.getItem("vibecode-editor-settings");
+    if (!stored) return defaultIdeSettings;
+    try { return { ...defaultIdeSettings, ...JSON.parse(stored) }; } catch { return defaultIdeSettings; }
+  });
 
   const { playgroundData, templateData, isLoading, error, saveTemplateData } =
     usePlayground(id);
-  console.log("playgroundData", playgroundData);
-  console.log("templateData", templateData);
-  console.log("isLoading", isLoading);
-  console.log("error", error);
   const aiSuggestions = useAISuggestions();
 
   const {
@@ -103,8 +110,15 @@ const MainPlaygroundPage = () => {
   useEffect(() => {
     if (templateData && !openFiles.length) {
       setTemplateData(templateData);
+      const first = listProjectFiles(templateData).find(file => /^(tsx?|jsx?|html|vue)$/.test(file.fileExtension)) ?? listProjectFiles(templateData)[0];
+      if (first) openFile(first);
     }
-  }, [templateData, setTemplateData, openFiles.length]);
+  }, [templateData, setTemplateData, openFiles.length, openFile]);
+
+  const persistSettings = (settings: EditorSettings) => {
+    setEditorSettings(settings);
+    window.localStorage.setItem("vibecode-editor-settings", JSON.stringify(settings));
+  };
 
   const wrappedHandleAddFile = useCallback(
     (newFile: TemplateFile, parentPath: string) => {
@@ -198,32 +212,11 @@ const MainPlaygroundPage = () => {
           return;
         }
 
-        const updatedTemplateData = JSON.parse(
-          JSON.stringify(latestTemplateData),
-        );
-
-        const updateFileContent = (items: any[]): any[] =>
-          items.map((item) => {
-            if ("folderName" in item) {
-              return { ...item, items: updateFileContent(item.items) };
-            } else if (
-              item.filename === fileToSave.filename &&
-              item.fileExtension === fileToSave.fileExtension
-            ) {
-              return { ...item, content: fileToSave.content };
-            }
-            return item;
-          });
-        updatedTemplateData.items = updateFileContent(
-          updatedTemplateData.items,
-        );
+        const updatedTemplateData = updateProjectFile(latestTemplateData, filePath, fileToSave.content);
 
         if (writeFileSync) {
           await writeFileSync(filePath, fileToSave.content);
           lastSyncedContent.current.set(fileToSave.id, fileToSave.content);
-          if (instance && instance.fs) {
-            await instance.fs.writeFile(filePath, fileToSave.content);
-          }
         }
 
         await saveTemplateData(updatedTemplateData);
@@ -280,8 +273,14 @@ const MainPlaygroundPage = () => {
   };
 
   useEffect(() => {
+    if (!editorSettings.autoSave || !activeFile?.hasUnsavedChanges) return;
+    const timer = setTimeout(() => void handleSave(activeFile.id), 1200);
+    return () => clearTimeout(timer);
+  }, [activeFile?.content, activeFile?.hasUnsavedChanges, activeFile?.id, editorSettings.autoSave, handleSave]);
+
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey && e.key === "s") {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
         handleSave();
       }
@@ -308,24 +307,11 @@ const MainPlaygroundPage = () => {
   // Loading state
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center h-[calc(100vh-4rem)] p-4">
-        <div className="w-full max-w-md p-6 rounded-lg shadow-sm border">
-          <h2 className="text-xl font-semibold mb-6 text-center">
-            Loading Playground
-          </h2>
-          <div className="mb-8">
-            <LoadingStep
-              currentStep={1}
-              step={1}
-              label="Loading playground data"
-            />
-            <LoadingStep
-              currentStep={2}
-              step={2}
-              label="Setting up environment"
-            />
-            <LoadingStep currentStep={3} step={3} label="Ready to code" />
-          </div>
+      <div className="ide-loading h-screen bg-[#09090b] p-4 text-zinc-300">
+        <div className="h-11 animate-pulse border-b border-white/10 bg-white/5" />
+        <div className="grid h-[calc(100%-2.75rem)] grid-cols-[240px_1fr_36%] gap-px bg-white/10">
+          <div className="bg-[#111318] p-4"><LoadingStep currentStep={1} step={1} label="Loading project files" /></div>
+          <div className="bg-[#0b0d10]" /><div className="bg-[#111318]" />
         </div>
       </div>
     );
@@ -349,7 +335,7 @@ const MainPlaygroundPage = () => {
   return (
     <TooltipProvider>
       <>
-        <TemplateFileTree
+        {!focusMode && <TemplateFileTree
           data={templateData!}
           onFileSelect={handleFileSelect}
           selectedFile={activeFile}
@@ -360,9 +346,9 @@ const MainPlaygroundPage = () => {
           onDeleteFolder={wrappedHandleDeleteFolder}
           onRenameFile={wrappedHandleRenameFile}
           onRenameFolder={wrappedHandleRenameFolder}
-        />
+        />}
         <SidebarInset>
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
+          <header className="flex h-12 shrink-0 items-center gap-2 border-b bg-[#111318] px-3 text-zinc-100">
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
 
@@ -371,13 +357,14 @@ const MainPlaygroundPage = () => {
                 <h1 className="text-sm font-medium">
                   {playgroundData?.title || "Code Playground"}
                 </h1>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-[10px] text-zinc-500">
                   {openFiles.length} File(s) Open
                   {hasUnsavedChanges && " • Unsaved changes"}
                 </p>
               </div>
 
               <div className="flex items-center gap-1">
+                <IdeCommandCenter files={listProjectFiles(templateData)} onOpenFile={handleFileSelect} onRun={() => instance && void getRuntime(instance).sync(transformToWebContainerFormat(templateData), true)} onTogglePreview={() => setIsPreviewVisible(value => !value)} onToggleTerminal={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", ctrlKey: true }))} onFocus={() => setFocusMode(value => !value)} settings={editorSettings} onSettings={persistSettings} />
                 <Tooltip>
                   <TooltipTrigger>
                     <Button
@@ -434,7 +421,7 @@ const MainPlaygroundPage = () => {
             </div>
           </header>
 
-          <div className="h-[calc(100vh-4rem)]">
+          <div className="h-[calc(100vh-3rem)] bg-[#09090b]">
             {openFiles.length > 0 ? (
               <div className="h-full flex flex-col">
                 <div className="border-b bg-muted/30">
@@ -442,13 +429,13 @@ const MainPlaygroundPage = () => {
                     value={activeFileId || ""}
                     onValueChange={setActiveFileId}
                   >
-                    <div className="flex items-center justify-between px-4 py-2">
+                    <div className="flex h-9 items-center justify-between overflow-hidden px-1">
                       <TabsList className="h-8 bg-transparent p-0">
                         {openFiles.map((file) => (
                           <TabsTrigger
                             key={file.id}
                             value={file.id}
-                            className="relative h-8 px-3 data-[state=active]:bg-background data-[state=active]:shadow-sm group"
+                            className="group relative h-9 rounded-none border-r border-white/5 px-3 text-xs data-[state=active]:border-t-2 data-[state=active]:border-t-red-500 data-[state=active]:bg-[#0b0d10]"
                           >
                             <div className="flex items-center gap-2">
                               <FileText className="h-3 w-3" />
@@ -485,13 +472,17 @@ const MainPlaygroundPage = () => {
                     </div>
                   </Tabs>
                 </div>
+                <div className="flex h-7 items-center gap-1 border-b bg-[#0b0d10] px-3 font-mono text-[11px] text-zinc-500">{activeFile?.path?.split("/").map((part, index) => <React.Fragment key={`${part}-${index}`}><span>{index ? ">" : ""}</span><span className={index === (activeFile.path?.split("/").length ?? 1) - 1 ? "text-zinc-300" : ""}>{part}</span></React.Fragment>)}</div>
                 <div className="flex-1">
                   <ResizablePanelGroup
                     direction="horizontal"
                     className="h-full"
                   >
-                    <ResizablePanel defaultSize={isPreviewVisible ? 50 : 100}>
+                    <ResizablePanel defaultSize={isPreviewVisible && !focusMode ? 55 : 100}>
                       <PlaygroundEditor
+                        filePath={activeFile?.path}
+                        editorOptions={editorSettings}
+                        onCursorChange={(line, column) => setCursor({ line, column })}
                         activeFile={activeFile}
                         content={activeFile?.content || ""}
                         onContentChange={(value) =>
@@ -512,10 +503,9 @@ const MainPlaygroundPage = () => {
                       />
                     </ResizablePanel>
 
-                    {isPreviewVisible && (
                       <>
-                        <ResizableHandle />
-                        <ResizablePanel defaultSize={50}>
+                        <ResizableHandle className={isPreviewVisible && !focusMode ? "" : "hidden"} />
+                        <ResizablePanel defaultSize={45} className={isPreviewVisible && !focusMode ? "" : "hidden"}>
                           <WebContainerPreview
                             templateData={templateData}
                             instance={instance}
@@ -527,9 +517,9 @@ const MainPlaygroundPage = () => {
                           />
                         </ResizablePanel>
                       </>
-                    )}
                   </ResizablePanelGroup>
                 </div>
+                <footer className="flex h-6 shrink-0 items-center gap-4 bg-[#c9344c] px-3 text-[10px] text-white"><span>main{hasUnsavedChanges ? "*" : ""}</span><span className="ml-auto">{activeFile ? getEditorLanguage(activeFile.fileExtension) : "Plain Text"}</span><span>Ln {cursor.line}, Col {cursor.column}</span><span>Spaces: {editorSettings.tabSize}</span><span>UTF-8</span><span>Node 20</span></footer>
               </div>
             ) : (   // else condition for when there are no open files
               <div className="flex flex-col h-full items-center justify-center text-muted-foreground gap-4">

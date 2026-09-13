@@ -11,6 +11,12 @@ import {
   MoreHorizontal,
   Trash2,
   Edit3,
+  Search,
+  Play,
+  Blocks,
+  Sparkles,
+  Settings,
+  RefreshCw,
 } from "lucide-react";
 
 import {
@@ -48,6 +54,7 @@ import RenameFileDialog from "./dialogs/rename-file-dialog";
 import { DeleteDialog } from "./dialogs/delete-dialog";
 
 interface TemplateFile {
+  path?: string;
   filename: string;
   fileExtension: string;
   content: string;
@@ -132,10 +139,15 @@ export function TemplateFileTree({
   };
 
   return (
-    <Sidebar>
-      <SidebarContent>
+    <Sidebar className="border-r border-white/10 bg-[#111318]">
+      <aside className="absolute inset-y-0 left-0 z-10 flex w-11 flex-col items-center border-r border-white/10 bg-[#0b0d10] py-2" aria-label="Workspace activity">
+        {[[File, "Explorer"], [Search, "Search"], [Play, "Run"], [Blocks, "Extensions"], [Sparkles, "AI"]].map(([Icon, label], index) => { const ActivityIcon = Icon as typeof File; return <button key={label as string} className={`ide-icon my-1 ${index === 0 ? "border-l-2 border-red-500 text-white" : ""}`} aria-label={label as string} title={label as string}><ActivityIcon size={17} /></button>; })}
+        <button className="ide-icon mt-auto" aria-label="Settings" title="Settings"><Settings size={17} /></button>
+      </aside>
+      <SidebarContent className="bg-[#111318] pl-11">
         <SidebarGroup>
-          <SidebarGroupLabel>{title}</SidebarGroupLabel>
+          <SidebarGroupLabel className="text-[10px] font-semibold tracking-normal text-zinc-400">{title.toUpperCase()}</SidebarGroupLabel>
+          <button onClick={() => window.location.reload()} className="absolute right-8 top-2.5 text-zinc-500 hover:text-zinc-200" aria-label="Refresh project files" title="Refresh"><RefreshCw size={13}/></button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <SidebarGroupAction>
@@ -261,8 +273,7 @@ function TemplateNode({
 
     const isSelected =
       selectedFile &&
-      selectedFile.filename === file.filename &&
-      selectedFile.fileExtension === file.fileExtension;
+      selectedFile.path === `${path ? `${path}/` : ""}${file.filename}${file.fileExtension ? `.${file.fileExtension}` : ""}`;
 
     const handleRename = () => {
       setIsRenameDialogOpen(true);
@@ -287,7 +298,7 @@ function TemplateNode({
         <div className="flex items-center group">
           <SidebarMenuButton
             isActive={isSelected}
-            onClick={() => onFileSelect?.(file)}
+            onClick={() => onFileSelect?.({ ...file, path: `${path ? `${path}/` : ""}${file.filename}${file.fileExtension ? `.${file.fileExtension}` : ""}` })}
             className="flex-1"
           >
             <File className="h-4 w-4 mr-2 shrink-0" />

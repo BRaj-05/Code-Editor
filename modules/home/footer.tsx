@@ -1,42 +1,4 @@
 import Link from "next/link";
-import { FaGithub } from "react-icons/fa";;
-import Github from "next-auth/providers/github";
-
-
-
-
 export function Footer() {
-  const socialLinks = [
-    {
-      href: "#",
-      icon: (
-        <FaGithub className="w-5 h-5 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors" />
-      ),
-    },
-  ];
-
-  return (
-    <footer className="border-t border-zinc-200 dark:border-zinc-800">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 py-8 flex flex-col items-center space-y-6 text-center">
-        {/* Social Links */}
-        <div className="flex gap-4">
-          {socialLinks.map((link, index) => (
-            <Link
-              key={index}
-              href={link.href || "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              {link.icon}
-            </Link>
-          ))}
-        </div>
-
-        {/* Copyright Notice */}
-        <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          &copy; {new Date().getFullYear()} Codesnippet. All rights reserved.
-        </p>
-      </div>
-    </footer>
-  );
+  return <footer className="relative z-20 border-t border-white/10 bg-[#09090b] text-zinc-400"><div className="mx-auto grid max-w-7xl gap-8 px-6 py-10 sm:grid-cols-[1fr_auto_auto]"><div><p className="font-semibold text-white">VibeCode</p><p className="mt-2 max-w-sm text-xs">A complete development workspace powered by Monaco, WebContainers, and Next.js.</p></div><div className="grid gap-2 text-xs"><strong className="text-zinc-200">Product</strong><Link href="/#features">Features</Link><Link href="/#templates">Templates</Link><Link href="/docs">Docs</Link></div><div className="grid gap-2 text-xs"><strong className="text-zinc-200">Resources</strong><Link href="https://github.com/BRaj-05/Code-Editor">GitHub</Link><span>Built with Next.js</span></div></div><div className="border-t border-white/5 px-6 py-4 text-center text-[11px]">© {new Date().getFullYear()} VibeCode Editor</div></footer>;
 }

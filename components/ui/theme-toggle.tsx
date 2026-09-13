@@ -1,33 +1,22 @@
 "use client";
 
 import { useTheme } from "@/components/providers/theme-providers";
-import { useEffect, useState } from "react";
-import { Moon, Sun, SunMoon } from "lucide-react";
+import { Moon, Sun } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export function ThemeToggle() {
-  const { setTheme, theme } = useTheme();
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  if (!mounted) {
-    return null;
-  }
+  const { resolvedTheme, setTheme } = useTheme();
 
   return (
-    <div
-      className="cursor-pointer"
-      onClick={() => {
-        setTheme(theme === "light" ? "dark" : "light");
-      }}
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label="Toggle color theme"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
     >
-      {theme === "light" ? (
-        <Moon className="h-5 w-5 text-black" />
-      ) : (
-        <Sun className="h-5 w-5 text-white" color="white" />
-      )}
-    </div>
+      <Moon className="h-5 w-5 dark:hidden" />
+      <Sun className="hidden h-5 w-5 dark:block" />
+    </Button>
   );
 }

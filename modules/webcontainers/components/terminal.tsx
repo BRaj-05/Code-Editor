@@ -34,6 +34,7 @@ TerminalComponent = forwardRef<TerminalRef, TerminalProps>(({
 }, ref) => {
   const terminalRef = useRef<HTMLDivElement>(null);
   const term = useRef<Terminal | null>(null);
+  const pendingOutput = useRef("");
   const fitAddon = useRef<FitAddon | null>(null);
   const searchAddon = useRef<SearchAddon | null>(null);
   const [isConnected, setIsConnected] = useState(false);
@@ -110,7 +111,7 @@ TerminalComponent = forwardRef<TerminalRef, TerminalProps>(({
     writeToTerminal: (data: string) => {
       if (term.current) {
         term.current.write(data);
-      }
+      } else pendingOutput.current = (pendingOutput.current + data).slice(-200000);
     },
     clearTerminal: () => {
       clearTerminal();
@@ -302,6 +303,10 @@ TerminalComponent = forwardRef<TerminalRef, TerminalProps>(({
     fitAddon.current = fitAddonInstance;
     searchAddon.current = searchAddonInstance;
     term.current = terminal;
+    if (pendingOutput.current) {
+      terminal.write(pendingOutput.current);
+      pendingOutput.current = "";
+    }
 
     // Handle terminal input
     terminal.onData(handleTerminalInput);
@@ -421,16 +426,11 @@ TerminalComponent = forwardRef<TerminalRef, TerminalProps>(({
   }, [webContainerInstance, connectToWebContainer, isConnected]);
 
   return (
-    <div className={cn("flex flex-col h-full bg-background border rounded-lg overflow-hidden", className)}>
+    <div className={cn("flex h-full flex-col overflow-hidden bg-[#09090b]", className)}>
       {/* Terminal Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b bg-muted/50">
+      <div className="flex items-center justify-between border-b border-white/10 bg-[#111318] px-3 py-1.5">
         <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            <div className="w-3 h-3 rounded-full bg-red-500"></div>
-            <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          </div>
-          <span className="text-sm font-medium">WebContainer Terminal</span>
+          <span className="text-xs font-medium">Terminal</span>
           {isConnected && (
             <div className="flex items-center gap-1">
               <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>

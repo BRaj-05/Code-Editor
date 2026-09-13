@@ -7,6 +7,9 @@ import { configureMonaco, defaultEditorOptions, getEditorLanguage } from "../lib
 
 
 interface PlaygroundEditorProps {
+  filePath?: string
+  editorOptions?: { fontSize: number; wordWrap: "on" | "off"; minimap: boolean; tabSize: number }
+  onCursorChange?: (line: number, column: number) => void
   activeFile: TemplateFile | undefined
   content: string
   onContentChange: (value: string) => void
@@ -19,6 +22,9 @@ interface PlaygroundEditorProps {
 }
 
 export const PlaygroundEditor = ({
+  filePath,
+  editorOptions,
+  onCursorChange,
   activeFile,
   content,
   onContentChange,
@@ -310,7 +316,7 @@ export const PlaygroundEditor = ({
   const handleEditorDidMount = (editor: any, monaco: Monaco) => {
     editorRef.current = editor
     monacoRef.current = monaco
-    console.log("Editor instance mounted:", !!editorRef.current)
+    editor.onDidChangeCursorPosition((event: any) => onCursorChange?.(event.position.lineNumber, event.position.column))
 
     editor.updateOptions({
       ...defaultEditorOptions,
@@ -538,13 +544,20 @@ export const PlaygroundEditor = ({
       )}
 
       <Editor
+        path={filePath}
         height="100%"
         value={content}
         onChange={(value) => onContentChange(value || "")}
         onMount={handleEditorDidMount}
         language={activeFile ? getEditorLanguage(activeFile.fileExtension || "") : "plaintext"}
         // @ts-ignore
-        options={defaultEditorOptions}
+        options={{
+          ...defaultEditorOptions,
+          fontSize: editorOptions?.fontSize ?? defaultEditorOptions.fontSize,
+          wordWrap: editorOptions?.wordWrap ?? "off",
+          minimap: { enabled: editorOptions?.minimap ?? true },
+          tabSize: editorOptions?.tabSize ?? 2,
+        }}
       />
     </div>
   )

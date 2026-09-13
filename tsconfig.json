@@ -37,6 +37,16 @@
     ".next/dev/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "vibecode-starters",
+    ".codex-runtime-check",
+    "**/.env*",
+    "**/*secret*",
+    "**/*credential*",
+    "**/*private*",
+    "**/*token*",
+    "**/*certificate*",
+    "**/*.key",
+    "**/*.pem"
   ]
 }

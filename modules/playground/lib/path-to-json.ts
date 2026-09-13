@@ -5,6 +5,7 @@ import * as path from 'path';
  * Represents a file in the template structure
  */
 export interface TemplateFile {
+  path?: string;
   filename: string;
   fileExtension: string;
   content: string;
@@ -63,8 +64,6 @@ export async function scanTemplateDirectory(
   // Set default options
   const defaultOptions: ScanOptions = {
     ignoreFiles: [
-      'package-lock.json',
-      'yarn.lock',
       '.DS_Store',
       'thumbs.db',
       '.gitignore',
@@ -147,6 +146,8 @@ async function processDirectory(
     for (const entry of entries) {
       const entryName = entry.name;
       const entryPath = path.join(folderPath, entryName);
+      // Never include local secrets in a browser project, including secret folders.
+      if (/^\.env(?:\.|$)|secret|credential|private|token|certificate|(?:^|[._-])keys?(?:[._-]|$)|\.(?:pem|pfx|p12|crt|cer|key)$/i.test(entryName)) continue;
 
       // Check if this entry should be skipped
       if (entry.isDirectory()) {
