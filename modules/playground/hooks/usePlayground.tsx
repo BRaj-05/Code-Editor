@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+ import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 
 import type { TemplateFolder } from "../lib/path-to-json";
@@ -82,7 +82,7 @@ export const usePlayground = (id: string): UsePlaygroundReturn => {
 
   const saveTemplateData = useCallback(async(data:TemplateFolder)=>{
     try {
-          await SaveUpdatedCode(id, data);
+      await SaveUpdatedCode(id, data);
       setTemplateData(data);
       toast.success("Changes saved successfully");
     } catch (error) {

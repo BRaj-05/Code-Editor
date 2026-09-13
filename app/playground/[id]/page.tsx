@@ -60,7 +60,10 @@ const MainPlaygroundPage = () => {
 
   const { playgroundData, templateData, isLoading, error, saveTemplateData } =
     usePlayground(id);
-
+  console.log("playgroundData", playgroundData);
+  console.log("templateData", templateData);
+  console.log("isLoading", isLoading);
+  console.log("error", error);
   const aiSuggestions = useAISuggestions();
 
   const {
@@ -89,7 +92,7 @@ const MainPlaygroundPage = () => {
     error: containerError,
     instance,
     writeFileSync,
-  } = useWebContainer({ templateData });
+  } = useWebContainer({ templateData: templateData as TemplateFolder });
 
   const lastSyncedContent = useRef<Map<string, string>>(new Map());
 
@@ -199,7 +202,7 @@ const MainPlaygroundPage = () => {
           JSON.stringify(latestTemplateData),
         );
 
-        const updateFileContent = (items: any[]) =>
+        const updateFileContent = (items: any[]): any[] =>
           items.map((item) => {
             if ("folderName" in item) {
               return { ...item, items: updateFileContent(item.items) };
@@ -528,7 +531,7 @@ const MainPlaygroundPage = () => {
                   </ResizablePanelGroup>
                 </div>
               </div>
-            ) : (
+            ) : (   // else condition for when there are no open files
               <div className="flex flex-col h-full items-center justify-center text-muted-foreground gap-4">
                 <FileText className="h-16 w-16 text-gray-300" />
                 <div className="text-center">

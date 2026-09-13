@@ -4,7 +4,36 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   images: {
     domains: ["lh3.googleusercontent.com"],
+    remotePatterns:[
+      {
+        protocol: "https",
+        hostname: "*",
+        port: "",
+        pathname: "/**"
+      }
+    ]
   },
+   async headers() {
+    return [
+      {
+        // Apply to all routes
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'require-corp',
+          },
+        ],
+      },
+    ];
+  },
+  reactStrictMode:false
+
+
 };
 
 export default nextConfig;

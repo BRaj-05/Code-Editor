@@ -1,5 +1,5 @@
 "use client"
-
+import React from "react"
 import { useRef, useEffect, useCallback } from "react"
 import Editor, { type Monaco } from "@monaco-editor/react"
 import { TemplateFile } from "../lib/path-to-json"

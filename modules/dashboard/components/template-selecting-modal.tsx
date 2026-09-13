@@ -133,7 +133,7 @@ const templates: TemplateOption[] = [
     ],
     category: "fullstack",
   },
-];
+]; 
 
 const TemplateSelectionModal = ({
   isOpen,
@@ -377,7 +377,7 @@ const TemplateSelectionModal = ({
                       <p className="text-sm text-muted-foreground">
                         Try adjusting your search or filters
                       </p>
-                    </div>
+                    </div> 
                   )}
                 </div>
               </RadioGroup>
@@ -422,7 +422,7 @@ const TemplateSelectionModal = ({
                 <Label htmlFor="project-name">Project Name</Label>
                 <Input
                   id="project-name"
-                  placeholder="my-awesome-project"
+                  placeholder="My-project"
                   value={projectName}
                   onChange={(e) => setProjectName(e.target.value)}
                 />

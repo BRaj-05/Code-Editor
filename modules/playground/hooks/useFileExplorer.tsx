@@ -117,7 +117,7 @@ export const useFileExplorer = create<FileExplorerState>((set, get) => ({
 
   closeFile:(fileId)=>{
     const {openFiles , activeFileId} = get();
-     const newFiles = openFiles.filter((f) => f.id !== fileId);
+    const newFiles = openFiles.filter((f) => f.id !== fileId);
 
       // If we're closing the active file, switch to another file or clear active
     let newActiveFileId = activeFileId;
