@@ -366,7 +366,7 @@ const MainPlaygroundPage = () => {
               <div className="flex items-center gap-1">
                 <IdeCommandCenter files={listProjectFiles(templateData)} onOpenFile={handleFileSelect} onRun={() => instance && void getRuntime(instance).sync(transformToWebContainerFormat(templateData), true)} onTogglePreview={() => setIsPreviewVisible(value => !value)} onToggleTerminal={() => window.dispatchEvent(new KeyboardEvent("keydown", { key: "j", ctrlKey: true }))} onFocus={() => setFocusMode(value => !value)} settings={editorSettings} onSettings={persistSettings} />
                 <Tooltip>
-                  <TooltipTrigger>
+                  <TooltipTrigger asChild>
                     <Button
                       size="sm"
                       variant="outline"

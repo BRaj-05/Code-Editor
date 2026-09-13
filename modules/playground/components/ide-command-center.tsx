@@ -67,7 +67,53 @@ export function IdeCommandCenter(props: Props) {
       <div className="grid gap-5">
         <div className="grid grid-cols-2 items-center gap-3"><Label htmlFor="font-size">Editor font size</Label><Input id="font-size" type="number" min={10} max={24} value={props.settings.fontSize} onChange={event => props.onSettings({ ...props.settings, fontSize: Number(event.target.value) })} /></div>
         <div className="grid grid-cols-2 items-center gap-3"><Label htmlFor="tab-size">Tab size</Label><Input id="tab-size" type="number" min={2} max={8} value={props.settings.tabSize} onChange={event => props.onSettings({ ...props.settings, tabSize: Number(event.target.value) })} /></div>
-        {([ ["Word wrap", "word-wrap", props.settings.wordWrap === "on", (value: boolean) => props.onSettings({ ...props.settings, wordWrap: value ? "on" : "off" })], ["Minimap", "minimap", props.settings.minimap, (value: boolean) => props.onSettings({ ...props.settings, minimap: value })], ["Auto save", "auto-save", props.settings.autoSave, (value: boolean) => props.onSettings({ ...props.settings, autoSave: value })] ] as const).map(([label, id, checked, change]) => <div key={id} className="flex items-center justify-between"><Label htmlFor={id}>{label}</Label><Switch id={id} checked={checked} onCheckedChange={change} /></div>)}
+      {(
+        [
+          [
+            "Word wrap",
+            "word-wrap",
+            props.settings.wordWrap === "on",
+            (value: boolean) =>
+              props.onSettings({
+                ...props.settings,
+                wordWrap: value ? "on" : "off",
+              }),
+          ],
+          [
+            "Minimap",
+            "minimap",
+            props.settings.minimap,
+            (value: boolean) =>
+              props.onSettings({
+                ...props.settings,
+                minimap: value,
+              }),
+          ],
+          [
+            "Auto save",
+            "auto-save",
+            props.settings.autoSave,
+            (value: boolean) =>
+              props.onSettings({
+                ...props.settings,
+                autoSave: value,
+              }),
+          ],
+        ] as const
+      ).map(([label, id, checked, change]) => (
+        <div
+          key={id}
+          className="flex items-center justify-between"
+        >
+          <Label htmlFor={id}>{label}</Label>
+
+          <Switch
+            id={id}
+            checked={checked}
+            onCheckedChange={change}
+          />
+        </div>
+      ))}
       </div></DialogContent></Dialog>
   </>;
 }
