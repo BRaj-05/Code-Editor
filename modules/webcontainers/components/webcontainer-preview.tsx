@@ -9,7 +9,6 @@ import {
 } from "react";
 
 import {
-  CheckCircle2,
   ChevronDown,
   ExternalLink,
   LoaderCircle,
@@ -36,8 +35,8 @@ import {
 import type { TerminalRef } from "./terminal";
 
 /*
- * Terminal uses browser-only APIs.
- * Loading it dynamically prevents Next.js SSR from evaluating xterm.
+ * xterm uses browser-only APIs.
+ * So load Terminal only in browser.
  */
 const TerminalComponent = dynamic(
   () => import("./terminal"),
@@ -64,14 +63,10 @@ type DeviceMode =
 
 interface Props {
   templateData: TemplateFolder;
-
   instance: WebContainer | null;
-
   isLoading: boolean;
-
   error: string | null;
-
-  serverUrl?: string;
+  serverUrl?: string | null;
 
   writeFileSync?: (
     path: string,
@@ -103,17 +98,24 @@ export default function WebContainerPreview({
   const [device, setDevice] =
     useState<DeviceMode>("desktop");
 
+  /*
+   * Changing revision changes iframe key.
+   * React then recreates the iframe.
+   *
+   * IMPORTANT:
+   * We still use state.url directly.
+   */
   const [revision, setRevision] =
     useState(0);
 
   const [panel, setPanel] =
-    useState<"terminal" | "output">(
-      "terminal",
-    );
+    useState<
+      "terminal" | "output"
+    >("terminal");
 
   /*
-   * Keep the bottom panel collapsed initially.
-   * This gives more space to Live Preview.
+   * Keep terminal closed initially
+   * so Preview gets more space.
    */
   const [expanded, setExpanded] =
     useState(false);
@@ -148,21 +150,10 @@ export default function WebContainerPreview({
   ].includes(stage);
 
   /*
-   * Add a small revision query whenever
-   * the user manually refreshes Preview.
-   */
-  const previewSrc = state.url
-    ? `${state.url}${
-        state.url.includes("?")
-          ? "&"
-          : "?"
-      }v=${revision}`
-    : "";
-
-  /*
-   * Pipe runtime output into both:
+   * Send runtime logs to:
+   *
    * 1. XTerm
-   * 2. Output tab
+   * 2. OUTPUT tab
    */
   useEffect(() => {
     if (!runtime) return;
@@ -186,10 +177,11 @@ export default function WebContainerPreview({
   }, [runtime]);
 
   /*
-   * Ctrl/Cmd + J toggles bottom panel.
+   * Ctrl / Cmd + J
+   * toggles terminal.
    */
   useEffect(() => {
-    const toggle = (
+    const handleKeyDown = (
       event: KeyboardEvent,
     ) => {
       if (
@@ -208,20 +200,21 @@ export default function WebContainerPreview({
 
     window.addEventListener(
       "keydown",
-      toggle,
+      handleKeyDown,
     );
 
-    return () =>
+    return () => {
       window.removeEventListener(
         "keydown",
-        toggle,
+        handleKeyDown,
       );
+    };
   }, []);
 
   /*
-   * Whenever a new server URL appears,
-   * show the Preview loading overlay
-   * until the iframe finishes loading.
+   * Whenever WebContainer gives us
+   * a new server URL, wait until the
+   * iframe finishes loading.
    */
   useEffect(() => {
     if (!state.url) return;
@@ -244,66 +237,45 @@ export default function WebContainerPreview({
     );
   };
 
+  /*
+   * Do NOT append ?v=1, ?v=2 etc.
+   *
+   * We only change the React key.
+   * That remounts the iframe using
+   * the original WebContainer URL.
+   */
   const refreshPreview = () => {
     if (!state.url) return;
 
-    setPreviewError(false);
     setPreviewLoading(true);
+    setPreviewError(false);
 
     setRevision(
       (value) => value + 1,
     );
   };
 
-  const getDeviceWidth = () => {
-    if (device === "tablet") {
-      return "768px";
-    }
+  const deviceWidth =
+    device === "desktop"
+      ? "100%"
+      : device === "tablet"
+        ? "768px"
+        : "390px";
 
-    if (device === "mobile") {
-      return "390px";
-    }
-
-    return "100%";
-  };
-
-  const getStatusColor = () => {
-    if (stage === "ready") {
-      return "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.65)]";
-    }
-
-    if (stage === "error") {
-      return "bg-red-500";
-    }
-
-    if (busy) {
-      return "bg-amber-400 animate-pulse";
-    }
-
-    return "bg-zinc-500";
-  };
-
-  const runtimeSteps = [
-    {
-      id: "booting",
-      label:
-        "Initializing runtime",
-    },
-    {
-      id: "mounting",
-      label: "Mounting files",
-    },
-    {
-      id: "installing",
-      label:
-        "Installing dependencies",
-    },
-    {
-      id: "starting",
-      label:
-        "Starting development server",
-    },
-  ];
+  const statusDot =
+    stage === "ready"
+      ? `
+        bg-emerald-400
+        shadow-[0_0_10px_rgba(52,211,153,0.65)]
+      `
+      : stage === "error"
+        ? "bg-red-500"
+        : busy
+          ? `
+            animate-pulse
+            bg-amber-400
+          `
+          : "bg-zinc-600";
 
   return (
     <section
@@ -319,27 +291,27 @@ export default function WebContainerPreview({
       "
       aria-label="Live preview"
     >
-      {/* ==============================
-          PREVIEW TOOLBAR
-      ============================== */}
+      {/* =========================
+          TOP PREVIEW TOOLBAR
+      ========================== */}
 
       <div
         className="
           flex
-          min-h-10
+          h-10
           shrink-0
-          flex-wrap
           items-center
           gap-1
           border-b
           border-white/[0.06]
-          bg-[#0d0f13]/95
+          bg-[#0d0f13]
           px-2
           text-xs
-          backdrop-blur
         "
       >
-        <span
+        {/* STATUS */}
+
+        <div
           className="
             mr-auto
             flex
@@ -353,7 +325,7 @@ export default function WebContainerPreview({
               h-2
               w-2
               rounded-full
-              ${getStatusColor()}
+              ${statusDot}
             `}
           />
 
@@ -361,46 +333,24 @@ export default function WebContainerPreview({
             className={
               stage === "ready"
                 ? "text-zinc-200"
-                : "text-zinc-400"
+                : stage === "error"
+                  ? "text-red-400"
+                  : "text-zinc-400"
             }
           >
             {stage.toUpperCase()}
           </span>
-        </span>
+        </div>
 
-        {/* Run */}
+        {/* RUN */}
 
         <button
-          className="
-            group
-            flex
-            h-7
-            w-7
-            items-center
-            justify-center
-            rounded-md
-            text-zinc-500
-            transition-all
-            duration-150
-            hover:bg-white/[0.06]
-            hover:text-zinc-100
-            active:scale-95
-            disabled:pointer-events-none
-            disabled:opacity-30
-          "
-          title="Run or restart server"
+          title="Run / Restart server"
           aria-label="Run or restart server"
           disabled={
             !runtime || busy
           }
           onClick={run}
-        >
-          <Play size={14} />
-        </button>
-
-        {/* Stop */}
-
-        <button
           className="
             flex
             h-7
@@ -411,12 +361,22 @@ export default function WebContainerPreview({
             text-zinc-500
             transition-all
             duration-150
+
             hover:bg-white/[0.06]
             hover:text-zinc-100
-            active:scale-95
+
+            active:scale-90
+
             disabled:pointer-events-none
             disabled:opacity-30
           "
+        >
+          <Play size={14} />
+        </button>
+
+        {/* STOP */}
+
+        <button
           title="Stop server"
           aria-label="Stop server"
           disabled={
@@ -427,13 +387,6 @@ export default function WebContainerPreview({
           onClick={() =>
             runtime?.stop()
           }
-        >
-          <Square size={13} />
-        </button>
-
-        {/* Refresh */}
-
-        <button
           className="
             flex
             h-7
@@ -444,33 +397,62 @@ export default function WebContainerPreview({
             text-zinc-500
             transition-all
             duration-150
+
             hover:bg-white/[0.06]
             hover:text-zinc-100
-            active:rotate-45
-            active:scale-95
+
+            active:scale-90
+
             disabled:pointer-events-none
             disabled:opacity-30
           "
-          title="Refresh preview"
-          aria-label="Refresh preview"
-          disabled={!state.url}
-          onClick={
-            refreshPreview
-          }
         >
-          <RotateCw size={14} />
+          <Square size={13} />
         </button>
 
-        <div
+        {/* REFRESH */}
+
+        <button
+          title="Refresh Preview"
+          aria-label="Refresh preview"
+          disabled={!state.url}
+          onClick={refreshPreview}
+          className="
+            flex
+            h-7
+            w-7
+            items-center
+            justify-center
+            rounded-md
+            text-zinc-500
+            transition-all
+            duration-150
+
+            hover:bg-white/[0.06]
+            hover:text-zinc-100
+
+            active:rotate-90
+            active:scale-90
+
+            disabled:pointer-events-none
+            disabled:opacity-30
+          "
+        >
+          <RotateCw
+            size={14}
+          />
+        </button>
+
+        <span
           className="
             mx-1
             h-4
             w-px
-            bg-white/[0.08]
+            bg-white/[0.07]
           "
         />
 
-        {/* Device buttons */}
+        {/* DEVICE PREVIEW */}
 
         {(
           [
@@ -491,6 +473,14 @@ export default function WebContainerPreview({
           ([name, Icon]) => (
             <button
               key={name}
+              title={`${name} preview`}
+              aria-label={`${name} preview`}
+              aria-pressed={
+                device === name
+              }
+              onClick={() =>
+                setDevice(name)
+              }
               className={`
                 flex
                 h-7
@@ -501,7 +491,7 @@ export default function WebContainerPreview({
                 border
                 transition-all
                 duration-200
-                active:scale-95
+                active:scale-90
 
                 ${
                   device === name
@@ -509,7 +499,7 @@ export default function WebContainerPreview({
                       border-rose-500/30
                       bg-rose-500/10
                       text-rose-400
-                      shadow-[0_0_16px_rgba(244,63,94,0.08)]
+                      shadow-[0_0_15px_rgba(244,63,94,0.08)]
                     `
                     : `
                       border-transparent
@@ -519,32 +509,34 @@ export default function WebContainerPreview({
                     `
                 }
               `}
-              title={`${name} preview`}
-              aria-label={`${name} preview`}
-              aria-pressed={
-                device === name
-              }
-              onClick={() =>
-                setDevice(name)
-              }
             >
               <Icon size={14} />
             </button>
           ),
         )}
 
-        <div
+        <span
           className="
             mx-1
             h-4
             w-px
-            bg-white/[0.08]
+            bg-white/[0.07]
           "
         />
 
-        {/* Open new tab */}
+        {/* OPEN NEW TAB */}
 
         <button
+          title="Open in new tab"
+          aria-label="Open preview in new tab"
+          disabled={!state.url}
+          onClick={() =>
+            window.open(
+              state.url,
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
           className="
             flex
             h-7
@@ -555,22 +547,15 @@ export default function WebContainerPreview({
             text-zinc-500
             transition-all
             duration-150
+
             hover:bg-white/[0.06]
             hover:text-zinc-100
-            active:scale-95
+
+            active:scale-90
+
             disabled:pointer-events-none
             disabled:opacity-30
           "
-          title="Open preview in new tab"
-          aria-label="Open preview in new tab"
-          disabled={!state.url}
-          onClick={() =>
-            window.open(
-              state.url,
-              "_blank",
-              "noopener,noreferrer",
-            )
-          }
         >
           <ExternalLink
             size={14}
@@ -578,9 +563,9 @@ export default function WebContainerPreview({
         </button>
       </div>
 
-      {/* ==============================
+      {/* =========================
           URL BAR
-      ============================== */}
+      ========================== */}
 
       <div
         className="
@@ -613,16 +598,22 @@ export default function WebContainerPreview({
           `}
         />
 
-        <span className="truncate">
+        <span
+          className="
+            min-w-0
+            flex-1
+            truncate
+          "
+        >
           {state.url ||
             state.command ||
             "Browser runtime"}
         </span>
       </div>
 
-      {/* ==============================
-          PREVIEW AREA
-      ============================== */}
+      {/* =========================
+          MAIN PREVIEW AREA
+      ========================== */}
 
       <div
         className="
@@ -637,20 +628,24 @@ export default function WebContainerPreview({
           p-2
         "
       >
-        {/* Background grid */}
+        {/* GRID BACKGROUND */}
 
         <div
           className="
             pointer-events-none
             absolute
             inset-0
-            opacity-[0.22]
-            [background-image:linear-gradient(rgba(255,255,255,0.035)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.035)_1px,transparent_1px)]
+            opacity-[0.18]
+
+            [background-image:
+            linear-gradient(rgba(255,255,255,0.04)_1px,transparent_1px),
+            linear-gradient(90deg,rgba(255,255,255,0.04)_1px,transparent_1px)]
+
             [background-size:32px_32px]
           "
         />
 
-        {/* Background glow */}
+        {/* SOFT GLOW */}
 
         <div
           className="
@@ -659,7 +654,7 @@ export default function WebContainerPreview({
             left-1/2
             top-[-180px]
             h-[320px]
-            w-[520px]
+            w-[500px]
             -translate-x-1/2
             rounded-full
             bg-rose-500/[0.07]
@@ -669,6 +664,12 @@ export default function WebContainerPreview({
 
         {state.url &&
         !failed ? (
+          /*
+           * IMPORTANT FIX:
+           *
+           * Use state.url DIRECTLY.
+           * Do not append ?v=revision.
+           */
           <div
             className="
               relative
@@ -679,8 +680,6 @@ export default function WebContainerPreview({
               justify-center
             "
           >
-            {/* DEVICE FRAME */}
-
             <div
               className={`
                 relative
@@ -688,12 +687,10 @@ export default function WebContainerPreview({
                 max-w-full
                 overflow-hidden
                 border
-                border-white/[0.09]
+                border-white/[0.1]
                 bg-white
 
-                shadow-[
-                  0_20px_80px_rgba(0,0,0,0.45)
-                ]
+                shadow-[0_20px_70px_rgba(0,0,0,0.45)]
 
                 transition-all
                 duration-500
@@ -702,7 +699,7 @@ export default function WebContainerPreview({
                 ${
                   device ===
                   "desktop"
-                    ? "rounded-md"
+                    ? "rounded-lg"
                     : device ===
                         "tablet"
                       ? "rounded-xl"
@@ -711,10 +708,10 @@ export default function WebContainerPreview({
               `}
               style={{
                 width:
-                  getDeviceWidth(),
+                  deviceWidth,
               }}
             >
-              {/* subtle top device line */}
+              {/* MOBILE / TABLET TOP DETAIL */}
 
               {device !==
                 "desktop" && (
@@ -734,7 +731,7 @@ export default function WebContainerPreview({
                 />
               )}
 
-              {/* Loading overlay */}
+              {/* LOADING OVERLAY */}
 
               {previewLoading && (
                 <div
@@ -745,11 +742,12 @@ export default function WebContainerPreview({
                     flex
                     items-center
                     justify-center
-                    bg-[#090a0d]/85
-                    text-zinc-300
+                    bg-[#090a0d]/90
                     backdrop-blur-sm
                   "
                 >
+                  {/* glow */}
+
                   <div
                     className="
                       absolute
@@ -757,8 +755,8 @@ export default function WebContainerPreview({
                       w-48
                       animate-pulse
                       rounded-full
-                      bg-rose-500/10
-                      blur-[60px]
+                      bg-rose-500/[0.12]
+                      blur-[65px]
                     "
                   />
 
@@ -775,7 +773,8 @@ export default function WebContainerPreview({
                       px-4
                       py-3
                       text-xs
-                      shadow-xl
+                      text-zinc-300
+                      shadow-2xl
                     "
                   >
                     <LoaderCircle
@@ -786,12 +785,12 @@ export default function WebContainerPreview({
                       "
                     />
 
-                    Loading preview...
+                    Loading Preview...
                   </div>
                 </div>
               )}
 
-              {/* Preview error */}
+              {/* ERROR OVERLAY */}
 
               {previewError && (
                 <div
@@ -835,8 +834,8 @@ export default function WebContainerPreview({
                       text-zinc-200
                     "
                   >
-                    Preview could
-                    not be loaded
+                    Preview failed
+                    to load
                   </h3>
 
                   <p
@@ -849,9 +848,10 @@ export default function WebContainerPreview({
                     "
                   >
                     The development
-                    server is running,
-                    but the preview
-                    failed to render.
+                    server started,
+                    but the browser
+                    preview could not
+                    load.
                   </p>
 
                   <button
@@ -873,9 +873,11 @@ export default function WebContainerPreview({
                       text-zinc-300
                       transition-all
                       duration-150
+
                       hover:border-rose-500/30
                       hover:bg-rose-500/10
                       hover:text-white
+
                       active:scale-95
                     "
                   >
@@ -883,15 +885,22 @@ export default function WebContainerPreview({
                       size={13}
                     />
 
-                    Try again
+                    Try Again
                   </button>
                 </div>
               )}
 
+              {/* =========================
+                  ACTUAL WEB APP
+
+                  THIS IS THE IMPORTANT FIX
+              ========================== */}
+
               <iframe
                 key={`${state.url}-${revision}`}
-                src={previewSrc}
+                src={state.url}
                 title="Project preview"
+                ref={(frame) => frame?.setAttribute("credentialless", "")}
                 onLoad={() => {
                   setPreviewLoading(
                     false,
@@ -923,9 +932,9 @@ export default function WebContainerPreview({
             </div>
           </div>
         ) : (
-          /* ==============================
-             RUNTIME INITIALIZATION
-          ============================== */
+          /* =========================
+              ENVIRONMENT STATE
+          ========================== */
 
           <div
             className="
@@ -937,13 +946,12 @@ export default function WebContainerPreview({
               rounded-xl
               border
               border-white/[0.08]
-              bg-[#101217]/90
+              bg-[#101217]/95
               p-5
               text-sm
               shadow-2xl
               backdrop-blur-xl
             "
-            aria-live="polite"
           >
             {failed ? (
               <>
@@ -990,6 +998,12 @@ export default function WebContainerPreview({
                 </p>
 
                 <button
+                  onClick={
+                    runtime
+                      ? run
+                      : () =>
+                          window.location.reload()
+                  }
                   className="
                     mt-5
                     flex
@@ -1004,20 +1018,15 @@ export default function WebContainerPreview({
                     text-xs
                     text-zinc-300
                     transition-all
-                    hover:border-rose-500/30
-                    hover:bg-rose-500/10
-                    hover:text-white
+                    duration-150
+
+                    hover:bg-white/[0.08]
+
                     active:scale-95
                   "
-                  onClick={
-                    runtime
-                      ? run
-                      : () =>
-                          window.location.reload()
-                  }
                 >
                   <RotateCw
-                    size={14}
+                    size={13}
                   />
 
                   Retry
@@ -1050,13 +1059,12 @@ export default function WebContainerPreview({
                         text-zinc-500
                       "
                     >
-                      Preparing your
-                      browser runtime
+                      Preparing browser
+                      runtime
                     </p>
                   </div>
 
-                  {stage !==
-                    "stopped" && (
+                  {busy && (
                     <LoaderCircle
                       size={17}
                       className="
@@ -1067,142 +1075,87 @@ export default function WebContainerPreview({
                   )}
                 </div>
 
-                <div className="space-y-1">
-                  {runtimeSteps.map(
-                    (step) => {
-                      const timing =
-                        state
-                          .timings[
-                          step.id
-                        ];
+                {[
+                  {
+                    id: "booting",
+                    label:
+                      "Initializing runtime",
+                  },
+                  {
+                    id: "mounting",
+                    label:
+                      "Mounting files",
+                  },
+                  {
+                    id: "installing",
+                    label:
+                      "Installing dependencies",
+                  },
+                  {
+                    id: "starting",
+                    label:
+                      "Starting server",
+                  },
+                ].map(
+                  ({
+                    id,
+                    label,
+                  }) => (
+                    <div
+                      key={id}
+                      className="
+                        flex
+                        min-h-10
+                        items-center
+                        justify-between
+                        border-b
+                        border-white/[0.04]
+                        text-xs
+                      "
+                    >
+                      <span
+                        className={
+                          stage === id
+                            ? "text-zinc-100"
+                            : "text-zinc-500"
+                        }
+                      >
+                        {label}
+                      </span>
 
-                      const isCurrent =
-                        step.id ===
-                        stage;
-
-                      const stageOrder =
-                        runtimeSteps.findIndex(
-                          (item) =>
-                            item.id ===
-                            stage,
-                        );
-
-                      const itemOrder =
-                        runtimeSteps.findIndex(
-                          (item) =>
-                            item.id ===
-                            step.id,
-                        );
-
-                      const completed =
-                        stage ===
-                          "ready" ||
-                        (stageOrder >
-                          itemOrder &&
-                          stageOrder !==
-                            -1);
-
-                      return (
-                        <div
-                          key={
-                            step.id
-                          }
-                          className="
-                            flex
-                            min-h-10
-                            items-center
-                            gap-3
-                            rounded-md
-                            px-2
-                            transition-colors
-                            duration-200
-                          "
-                        >
-                          <div
-                            className="
-                              flex
-                              h-5
-                              w-5
-                              items-center
-                              justify-center
-                            "
-                          >
-                            {completed ? (
-                              <CheckCircle2
-                                size={
-                                  15
-                                }
-                                className="text-emerald-400"
-                              />
-                            ) : isCurrent ? (
-                              <LoaderCircle
-                                size={
-                                  15
-                                }
-                                className="
-                                  animate-spin
-                                  text-rose-400
-                                "
-                              />
-                            ) : (
-                              <span
-                                className="
-                                  h-1.5
-                                  w-1.5
-                                  rounded-full
-                                  bg-zinc-700
-                                "
-                              />
-                            )}
-                          </div>
-
-                          <span
-                            className={`
-                              flex-1
-                              text-xs
-
-                              ${
-                                completed
-                                  ? "text-zinc-400"
-                                  : isCurrent
-                                    ? "text-zinc-100"
-                                    : "text-zinc-600"
-                              }
-                            `}
-                          >
-                            {
-                              step.label
-                            }
-                          </span>
-
-                          <span
-                            className="
-                              font-mono
-                              text-[10px]
-                              text-zinc-600
-                            "
-                          >
-                            {timing !==
-                            undefined
-                              ? `${(
-                                  timing /
-                                  1000
-                                ).toFixed(
-                                  1,
-                                )}s`
-                              : isCurrent
-                                ? "Running"
-                                : ""}
-                          </span>
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
+                      <span
+                        className="
+                          font-mono
+                          text-[10px]
+                          text-zinc-600
+                        "
+                      >
+                        {state.timings[
+                          id
+                        ] !==
+                        undefined
+                          ? `${(
+                              state
+                                .timings[
+                                id
+                              ] /
+                              1000
+                            ).toFixed(
+                              1,
+                            )}s`
+                          : stage ===
+                              id
+                            ? "Running"
+                            : "-"}
+                      </span>
+                    </div>
+                  ),
+                )}
 
                 {stage ===
                   "stopped" && (
                   <button
+                    onClick={run}
                     className="
                       mt-4
                       flex
@@ -1216,16 +1169,13 @@ export default function WebContainerPreview({
                       py-2
                       text-xs
                       text-zinc-300
-                      transition-all
-                      hover:bg-white/[0.07]
                     "
-                    onClick={run}
                   >
                     <Play
                       size={13}
                     />
 
-                    Start server
+                    Start Server
                   </button>
                 )}
               </>
@@ -1234,9 +1184,9 @@ export default function WebContainerPreview({
         )}
       </div>
 
-      {/* ==============================
-          BOTTOM PANEL TABS
-      ============================== */}
+      {/* =========================
+          TERMINAL NAVBAR
+      ========================== */}
 
       <div
         className="
@@ -1253,6 +1203,10 @@ export default function WebContainerPreview({
         "
       >
         <button
+          onClick={() => {
+            setPanel("terminal");
+            setExpanded(true);
+          }}
           className={`
             flex
             h-full
@@ -1260,7 +1214,6 @@ export default function WebContainerPreview({
             gap-1.5
             border-b-2
             transition-colors
-            duration-150
 
             ${
               panel ===
@@ -1276,10 +1229,6 @@ export default function WebContainerPreview({
                 `
             }
           `}
-          onClick={() => {
-            setPanel("terminal");
-            setExpanded(true);
-          }}
         >
           <Terminal size={12} />
 
@@ -1287,11 +1236,14 @@ export default function WebContainerPreview({
         </button>
 
         <button
+          onClick={() => {
+            setPanel("output");
+            setExpanded(true);
+          }}
           className={`
             h-full
             border-b-2
             transition-colors
-            duration-150
 
             ${
               panel === "output"
@@ -1306,10 +1258,6 @@ export default function WebContainerPreview({
                 `
             }
           `}
-          onClick={() => {
-            setPanel("output");
-            setExpanded(true);
-          }}
         >
           OUTPUT
         </button>
@@ -1328,6 +1276,16 @@ export default function WebContainerPreview({
         </span>
 
         <button
+          title="Toggle Terminal (Ctrl + J)"
+          aria-label="Toggle terminal"
+          aria-expanded={
+            expanded
+          }
+          onClick={() =>
+            setExpanded(
+              (value) => !value,
+            )
+          }
           className="
             flex
             h-7
@@ -1337,19 +1295,10 @@ export default function WebContainerPreview({
             rounded-md
             text-zinc-500
             transition-all
+
             hover:bg-white/[0.06]
             hover:text-zinc-200
           "
-          title="Toggle terminal panel (Ctrl+J)"
-          aria-label="Toggle terminal panel"
-          aria-expanded={
-            expanded
-          }
-          onClick={() =>
-            setExpanded(
-              (value) => !value,
-            )
-          }
         >
           <ChevronDown
             size={14}
@@ -1367,9 +1316,9 @@ export default function WebContainerPreview({
         </button>
       </div>
 
-      {/* ==============================
-          TERMINAL / OUTPUT
-      ============================== */}
+      {/* =========================
+          TERMINAL / OUTPUT AREA
+      ========================== */}
 
       <div
         className={`

@@ -101,6 +101,11 @@ export class RuntimeSession {
   private pipe(process: WebContainerProcess) {
     void process.output.pipeTo(new WritableStream({ write: chunk => this.log(chunk) })).catch(() => {});
   }
+  private logMountedEntry(files: Map<string, string>) {
+    if (process.env.NODE_ENV !== "development") return;
+    const path = ["src/index.ts", "src/index.tsx", "src/App.tsx", "app/page.tsx", "src/App.vue", "src/main.ts", "index.js", "pages/index.html"].find(candidate => files.has(candidate));
+    if (path) this.log(`\r\n[preview debug] mounted ${path}\r\n${files.get(path)}\r\n`);
+  }
   sync(tree: FileSystemTree, restart = false): Promise<void> {
     this.queue = this.queue.then(async () => {
       if (this.disposed) return;
@@ -108,6 +113,7 @@ export class RuntimeSession {
       const current = () => generation === this.generation && !this.disposed;
       try {
         const files = flatten(tree);
+        this.logMountedEntry(files);
         const fingerprint = dependencyFingerprint(files);
         const script = selectScript(files.get("package.json") ?? "{}");
         const changedDependencies = fingerprint !== this.installed;
@@ -154,6 +160,7 @@ export class RuntimeSession {
           if (!current() || !/^https?:\/\//.test(url)) return;
           clearTimeout(this.timer);
           this.update({ stage: "ready", url, timings: { ...this.state.timings, starting: performance.now() - started } });
+          if (process.env.NODE_ENV === "development") void fetch(url).then(async response => this.log(`\r\n[preview debug] ${response.status} ${response.headers.get("content-type") ?? ""}\r\n${await response.text()}\r\n`)).catch(reason => this.log(`\r\n[preview debug] fetch failed: ${String(reason)}\r\n`));
         });
         this.timer = setTimeout(() => this.fail(new Error("Server startup timed out. Check terminal output and ensure the server listens on 0.0.0.0."), generation), this.limits.start);
         this.log(`\r\n$ npm run ${script}\r\n`);
