@@ -160,7 +160,6 @@ export class RuntimeSession {
           if (!current() || !/^https?:\/\//.test(url)) return;
           clearTimeout(this.timer);
           this.update({ stage: "ready", url, timings: { ...this.state.timings, starting: performance.now() - started } });
-          if (process.env.NODE_ENV === "development") void fetch(url).then(async response => this.log(`\r\n[preview debug] ${response.status} ${response.headers.get("content-type") ?? ""}\r\n${await response.text()}\r\n`)).catch(reason => this.log(`\r\n[preview debug] fetch failed: ${String(reason)}\r\n`));
         });
         this.timer = setTimeout(() => this.fail(new Error("Server startup timed out. Check terminal output and ensure the server listens on 0.0.0.0."), generation), this.limits.start);
         this.log(`\r\n$ npm run ${script}\r\n`);

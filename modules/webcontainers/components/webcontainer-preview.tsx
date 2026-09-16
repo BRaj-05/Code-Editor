@@ -896,39 +896,29 @@ export default function WebContainerPreview({
                   THIS IS THE IMPORTANT FIX
               ========================== */}
 
-              <iframe
-                key={`${state.url}-${revision}`}
-                src={state.url}
-                title="Project preview"
-                ref={(frame) => frame?.setAttribute("credentialless", "")}
-                onLoad={() => {
-                  setPreviewLoading(
-                    false,
-                  );
-
-                  setPreviewError(
-                    false,
-                  );
-                }}
-                onError={() => {
-                  setPreviewLoading(
-                    false,
-                  );
-
-                  setPreviewError(
-                    true,
-                  );
-                }}
-                className="
-                  block
-                  h-full
-                  w-full
-                  border-0
-                  bg-white
-                  transition-opacity
-                  duration-300
-                "
-              />
+            <iframe
+              key={`${state.url}-${revision}`}
+              src={state.url}
+              title="Project preview"
+              allow="cross-origin-isolated"
+              onLoad={() => {
+                setPreviewLoading(false);
+                setPreviewError(false);
+              }}
+              onError={() => {
+                setPreviewLoading(false);
+                setPreviewError(true);
+              }}
+              className="
+                block
+                h-full
+                w-full
+                border-0
+                bg-white
+                transition-opacity
+                duration-300
+              "
+            />
             </div>
           </div>
         ) : (

@@ -153,7 +153,8 @@ const MainPlaygroundPage = () => {
     instance,
     writeFileSync,
   } = useWebContainer({
-    templateData: templateData as TemplateFolder,
+    templateData,
+    workspaceId: id,
   });
 
   const lastSyncedContent = useRef<Map<string, string>>(new Map());
@@ -171,8 +172,13 @@ const MainPlaygroundPage = () => {
    * when the project loads.
    */
   useEffect(() => {
-    if (templateData && !openFiles.length) {
-      setTemplateData(templateData);
+    if (!templateData) {
+      return;
+    }
+
+    setTemplateData(templateData);
+
+    if (!openFiles.length) {
 
       const files = listProjectFiles(templateData);
 
