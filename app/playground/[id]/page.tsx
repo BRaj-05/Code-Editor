@@ -18,7 +18,11 @@ import {
 
 import { Separator } from "@/components/ui/separator";
 
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  SidebarInset,
+  SidebarTrigger,
+  useSidebar,
+} from "@/components/ui/sidebar";
 
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -92,8 +96,94 @@ const MainPlaygroundPage = () => {
   }>();
 
   const [isPreviewVisible, setIsPreviewVisible] = useState(true);
-
   const [focusMode, setFocusMode] = useState(false);
+
+  /*
+   * FILE EXPLORER WIDTH
+   *
+   * Default: 256px
+   * Minimum: 180px
+   * Maximum: 520px
+   *
+   * Width is saved so the explorer keeps
+   * the user's preferred size.
+   */
+  const { state: sidebarState } = useSidebar();
+
+  const [explorerWidth, setExplorerWidth] = useState(256);
+
+  /*
+   * Restore saved explorer width.
+   */
+  useEffect(() => {
+    const stored = window.localStorage.getItem("vibecode-explorer-width");
+
+    if (!stored) {
+      return;
+    }
+
+    const width = Number(stored);
+
+    if (!Number.isFinite(width)) {
+      return;
+    }
+
+    setExplorerWidth(Math.min(520, Math.max(180, width)));
+  }, []);
+
+  /*
+   * Save explorer width.
+   */
+  useEffect(() => {
+    window.localStorage.setItem(
+      "vibecode-explorer-width",
+      String(explorerWidth),
+    );
+  }, [explorerWidth]);
+
+  /*
+   * Drag File Explorer boundary.
+   */
+  const handleExplorerResize = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (sidebarState === "collapsed") {
+        return;
+      }
+
+      event.preventDefault();
+
+      const startX = event.clientX;
+
+      const startWidth = explorerWidth;
+
+      document.body.style.cursor = "col-resize";
+
+      document.body.style.userSelect = "none";
+
+      const handlePointerMove = (moveEvent: PointerEvent) => {
+        const difference = moveEvent.clientX - startX;
+
+        const nextWidth = Math.min(520, Math.max(180, startWidth + difference));
+
+        setExplorerWidth(nextWidth);
+      };
+
+      const handlePointerUp = () => {
+        document.body.style.cursor = "";
+
+        document.body.style.userSelect = "";
+
+        window.removeEventListener("pointermove", handlePointerMove);
+
+        window.removeEventListener("pointerup", handlePointerUp);
+      };
+
+      window.addEventListener("pointermove", handlePointerMove);
+
+      window.addEventListener("pointerup", handlePointerUp);
+    },
+    [explorerWidth, sidebarState],
+  );
 
   const [cursor, setCursor] = useState({
     line: 1,
@@ -179,7 +269,6 @@ const MainPlaygroundPage = () => {
     setTemplateData(templateData);
 
     if (!openFiles.length) {
-
       const files = listProjectFiles(templateData);
 
       const first =
@@ -638,8 +727,21 @@ const MainPlaygroundPage = () => {
   }
 
   return (
-    <TooltipProvider>
-      <>
+   <TooltipProvider>
+    <div
+      className="
+        relative
+        flex
+        min-h-svh
+        w-full
+      "
+      style={
+        {
+          "--sidebar-width":
+            `${explorerWidth}px`,
+        } as React.CSSProperties
+      }
+    >
         {/* ============================
             FILE EXPLORER
         ============================ */}
@@ -656,6 +758,25 @@ const MainPlaygroundPage = () => {
             onDeleteFolder={wrappedHandleDeleteFolder}
             onRenameFile={wrappedHandleRenameFile}
             onRenameFolder={wrappedHandleRenameFolder}
+          />
+        )}
+
+        {/* ============================
+            FILE EXPLORER RESIZE HANDLE
+        ============================ */}
+        {!focusMode && sidebarState === "expanded" && (
+          <div
+            role="separator"
+            aria-label="Resize File Explorer"
+            aria-orientation="vertical"
+            aria-valuemin={180}
+            aria-valuemax={520}
+            aria-valuenow={explorerWidth}
+            title="Drag to resize • Double-click to reset"
+            onPointerDown={handleExplorerResize}
+            onDoubleClick={() => setExplorerWidth(256)}
+            style={{ left: explorerWidth - 3 }}
+            className="fixed inset-y-0 z-50 hidden w-[6px] cursor-col-resize touch-none select-none bg-transparent transition-colors hover:bg-rose-500/35 active:bg-rose-500/60 md:block"
           />
         )}
 
@@ -1505,7 +1626,7 @@ const MainPlaygroundPage = () => {
             )}
           </div>
         </SidebarInset>
-      </>
+      </div>
     </TooltipProvider>
   );
 };

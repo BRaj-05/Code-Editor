@@ -139,15 +139,57 @@ export function TemplateFileTree({
   };
 
   return (
-    <Sidebar className="border-r border-white/10 bg-[#111318]">
-      <aside className="absolute inset-y-0 left-0 z-10 flex w-11 flex-col items-center border-r border-white/10 bg-[#0b0d10] py-2" aria-label="Workspace activity">
-        {[[File, "Explorer"], [Search, "Search"], [Play, "Run"], [Blocks, "Extensions"], [Sparkles, "AI"]].map(([Icon, label], index) => { const ActivityIcon = Icon as typeof File; return <button key={label as string} className={`ide-icon my-1 ${index === 0 ? "border-l-2 border-red-500 text-white" : ""}`} aria-label={label as string} title={label as string}><ActivityIcon size={17} /></button>; })}
-        <button className="ide-icon mt-auto" aria-label="Settings" title="Settings"><Settings size={17} /></button>
+    <Sidebar className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
+      <aside
+        className="absolute inset-y-0 left-0 z-10 flex w-11 flex-col items-center border-r border-sidebar-border bg-sidebar py-2 text-sidebar-foreground"
+        aria-label="Workspace activity"
+      >
+        {[
+          [File, "Explorer"],
+          [Search, "Search"],
+          [Play, "Run"],
+          [Blocks, "Extensions"],
+          [Sparkles, "AI"],
+        ].map(([Icon, label], index) => {
+          const ActivityIcon = Icon as typeof File;
+
+          return (
+            <button
+              key={label as string}
+              className={`my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
+                index === 0
+                  ? "border-l-2 border-red-500 bg-sidebar-accent text-sidebar-accent-foreground"
+                  : ""
+              }`}
+              aria-label={label as string}
+              title={label as string}
+            >
+              <ActivityIcon size={17} />
+            </button>
+          );
+        })}
+
+        <button
+          className="mt-auto inline-flex size-7 items-center justify-center rounded-sm text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+          aria-label="Settings"
+          title="Settings"
+        >
+          <Settings size={17} />
+        </button>
       </aside>
-      <SidebarContent className="bg-[#111318] pl-11">
+      <SidebarContent className="bg-sidebar pl-11 text-sidebar-foreground">
         <SidebarGroup>
-          <SidebarGroupLabel className="text-[10px] font-semibold tracking-normal text-zinc-400">{title.toUpperCase()}</SidebarGroupLabel>
-          <button onClick={() => window.location.reload()} className="absolute right-8 top-2.5 text-zinc-500 hover:text-zinc-200" aria-label="Refresh project files" title="Refresh"><RefreshCw size={13}/></button>
+          <SidebarGroupLabel className="text-[10px] font-semibold tracking-normal text-sidebar-foreground/70">
+            {title.toUpperCase()}
+          </SidebarGroupLabel>
+          <button
+            onClick={() => window.location.reload()}
+            className="absolute right-8 top-2.5 text-sidebar-foreground/50 transition-colors hover:text-sidebar-foreground"
+            aria-label="Refresh project files"
+            title="Refresh"
+          >
+            <RefreshCw size={13} />
+          </button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <SidebarGroupAction>
@@ -203,7 +245,6 @@ export function TemplateFileTree({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarRail />
 
       <NewFileDialog
         isOpen={isNewFileDialogOpen}

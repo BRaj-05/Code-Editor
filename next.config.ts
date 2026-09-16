@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  devIndicators: false,
+
   images: {
     remotePatterns: [
       {
@@ -12,27 +14,27 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-   async headers() {
+
+  async headers() {
     return [
       {
-        // Apply to all routes
-        source: '/:path*',
+        source: "/:path*",
+
         headers: [
           {
-            key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin',
+            key: "Cross-Origin-Opener-Policy",
+            value: "same-origin",
           },
           {
-            key: 'Cross-Origin-Embedder-Policy',
-            value: 'require-corp',
+            key: "Cross-Origin-Embedder-Policy",
+            value: "require-corp",
           },
         ],
       },
     ];
   },
-  reactStrictMode:false
 
-
+  reactStrictMode: false,
 };
 
 export default nextConfig;
