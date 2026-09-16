@@ -1,5 +1,5 @@
 # VibeCode Editor
-Website-link -> code-editor-flax-nu.vercel.app
+Website-link -> [code-editor-flax-nu.vercel.app](https://code-editor-flax-nu.vercel.app/)
 A smart developer playground for AI-assisted coding, live preview, and project management.
 
 VibeCode Editor is a modern web-based code editor built with **Next.js 16**, **React 19**, **NextAuth**, and **Prisma**. It combines an AI-assisted development experience with a customizable playground, project dashboard, and in-browser WebContainer preview.
