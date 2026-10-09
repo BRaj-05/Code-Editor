@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import type { TemplateFile } from "../lib/path-to-json";
+import { IDE_QUICK_OPEN_EVENT } from "../lib/ide-events";
 
 export interface EditorSettings { fontSize: number; wordWrap: "on" | "off"; minimap: boolean; tabSize: number; autoSave: boolean; }
 export const defaultIdeSettings: EditorSettings = { fontSize: 14, wordWrap: "off", minimap: true, tabSize: 2, autoSave: false };
@@ -41,6 +42,11 @@ export function IdeCommandCenter(props: Props) {
     };
     window.addEventListener("keydown", keyboard);
     return () => window.removeEventListener("keydown", keyboard);
+  }, []);
+  useEffect(() => {
+    const openQuickOpen = () => setQuickOpen(true);
+    window.addEventListener(IDE_QUICK_OPEN_EVENT, openQuickOpen);
+    return () => window.removeEventListener(IDE_QUICK_OPEN_EVENT, openQuickOpen);
   }, []);
   const run = (action: () => void) => { setPalette(false); action(); };
   return <>

@@ -2,6 +2,7 @@
 
 import type React from "react";
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -47,7 +48,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import "katex/dist/katex.min.css";
 import Image from "next/image";
-import Stream from "stream";
 
 interface ChatMessage {
     role: "user" | "assistant";
@@ -122,10 +122,41 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
     const [searchTerm, setSearchTerm] = useState("");
     const [filterType, setFilterType] = useState<string>("all");
     const [autoSave, setAutoSave] = useState(true);
-    const [streamResponse, setStreamResponse] = useState(true);
-    const [model, setModel] = useState<string>("gpt-6");
+    const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
+    const [isMounted, setIsMounted] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const panelRef = useRef<HTMLDivElement>(null);
+    const dragOffsetRef = useRef<{ x: number; y: number } | null>(null);
+
+    const handleDragStart = (event: React.PointerEvent<HTMLDivElement>) => {
+        const target = event.target as HTMLElement;
+        if (target.closest("button, input, textarea, [role=tab]")) return;
+
+        const panel = panelRef.current;
+        if (!panel) return;
+        event.stopPropagation();
+        event.preventDefault();
+        const bounds = panel.getBoundingClientRect();
+        dragOffsetRef.current = { x: event.clientX - bounds.left, y: event.clientY - bounds.top };
+        event.currentTarget.setPointerCapture(event.pointerId);
+    };
+
+    const handleDragMove = (event: React.PointerEvent<HTMLDivElement>) => {
+        const panel = panelRef.current;
+        const offset = dragOffsetRef.current;
+        if (!panel || !offset) return;
+
+        const bounds = panel.getBoundingClientRect();
+        setPosition({
+            x: Math.min(Math.max(0, event.clientX - offset.x), window.innerWidth - bounds.width),
+            y: Math.min(Math.max(0, event.clientY - offset.y), window.innerHeight - bounds.height),
+        });
+    };
+
+    const handleDragEnd = () => {
+        dragOffsetRef.current = null;
+    };
 
     const scrollToBottom = () => {
         if (messagesEndRef.current) {
@@ -139,6 +170,10 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
         }, 100);
         return () => clearTimeout(timeoutId);
     }, [messages, isLoading]);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
 
     const getChatModePrompt = (mode: string, content: string) => {
         switch (mode) {
@@ -192,25 +227,30 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
             role: msg.role,
             content: msg.content,
           })),
-          stream: streamResponse,
           mode: chatMode,
-          model,
         }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
+      const data = (await response.json().catch(() => null)) as {
+        response?: string;
+        error?: string;
+        tokens?: number;
+        model?: string;
+      } | null;
+
+      if (response.ok && data?.response) {
+        const assistantResponse = data.response;
 
         setMessages((prev) => [
           ...prev,
           {
             role: "assistant",
-            content: data.response,
+            content: assistantResponse,
             timestamp: new Date(),
             id: Date.now().toString(),
             type: messageType,
             tokens: data.tokens,
-            model: data.model || "AI Assistant",
+            model: data.model || "Gemini",
           },
         ]);
       } else {
@@ -218,8 +258,7 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
           ...prev,
           {
             role: "assistant",
-            content:
-              "Sorry, I encountered an error while processing your request. Please try again.",
+            content: data?.error || `AI request failed (${response.status}).`,
             timestamp: new Date(),
             id: Date.now().toString(),
           },
@@ -270,7 +309,9 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
             return msg.content.toLowerCase().includes(searchTerm.toLowerCase())
         })
 
-    return (
+    if (!isMounted) return null;
+
+    return createPortal(
         <TooltipProvider>
             <>
                 {/* Backdrop */}
@@ -284,14 +325,22 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
 
                 {/* Side Panel */}
                 <div
+                    ref={panelRef}
+                    style={position ? { left: position.x, top: position.y, right: "auto" } : undefined}
                     className={cn(
-                        "fixed right-0 top-0 h-full w-full max-w-6xl bg-zinc-950 border-l border-zinc-800 z-50 flex flex-col transition-transform duration-300 ease-out shadow-2xl",
+                        "fixed right-4 top-4 h-[min(640px,calc(100vh-2rem))] w-[min(32rem,calc(100vw-2rem))] border border-zinc-800 bg-zinc-950 z-50 flex flex-col transition-transform duration-300 ease-out shadow-2xl",
                         isOpen ? "translate-x-0" : "translate-x-full"
                     )}
                 >
                     {/* Enhanced Header */}
                     <div className="shrink-0 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm">
-                        <div className="flex items-center justify-between p-6">
+                        <div
+                            className="flex cursor-move touch-none items-center justify-between p-4"
+                            onPointerDown={handleDragStart}
+                            onPointerMove={handleDragMove}
+                            onPointerUp={handleDragEnd}
+                            onPointerCancel={handleDragEnd}
+                        >
                             <div className="flex items-center gap-3">
                                 <div className="relative w-10 h-10 border rounded-full flex flex-col justify-center items-center">
                                     <Image src={"/logo.svg"} alt="Logo" width={28} height={28} />
@@ -323,13 +372,6 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
                                         >
                                             Auto-save conversations
                                         </DropdownMenuCheckboxItem>
-                                        <DropdownMenuCheckboxItem
-                                            checked={streamResponse}
-                                            onCheckedChange={setStreamResponse}
-                                        >
-                                            Stream responses
-                                        </DropdownMenuCheckboxItem>
-                                        <DropdownMenuSeparator />
                                         <DropdownMenuItem onClick={exportChat}>
                                             <Download className="h-4 w-4 mr-2" />
                                             Export Chat
@@ -355,54 +397,42 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
                         <Tabs
                             value={chatMode}
                             onValueChange={(value) => setChatMode(value as any)}
-                            className="px-6"
+                            className="px-4"
                         >
-                            <div className="flex items-center justify-between mb-4">
-                                <TabsList className="grid w-full grid-cols-4 max-w-md">
-                                    <TabsTrigger value="chat" className="flex items-center gap-1">
+                            <div className="mb-4 space-y-3">
+                                <TabsList className="grid h-9 w-full grid-cols-4 border border-zinc-800 bg-zinc-950 p-1">
+                                    <TabsTrigger value="chat" className="flex gap-1 text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100">
                                         <MessageSquare className="h-3 w-3" />
                                         Chat
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="review"
-                                        className="flex items-center gap-1"
+                                        className="flex gap-1 text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100"
                                     >
                                         <Code className="h-3 w-3" />
                                         Review
                                     </TabsTrigger>
-                                    <TabsTrigger value="fix" className="flex items-center gap-1">
+                                    <TabsTrigger value="fix" className="flex gap-1 text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100">
                                         <RefreshCw className="h-3 w-3" />
                                         Fix
                                     </TabsTrigger>
                                     <TabsTrigger
                                         value="optimize"
-                                        className="flex items-center gap-1"
+                                        className="flex gap-1 text-xs text-zinc-400 data-[state=active]:bg-zinc-800 data-[state=active]:text-zinc-100"
                                     >
                                         <Zap className="h-3 w-3" />
                                         Optimize
                                     </TabsTrigger>
                                 </TabsList>
 
-                                <div className="flex items-center gap-2">
-                                    <div className="hidden sm:flex items-center gap-2 text-xs text-zinc-400">
-                                        <span className="text-zinc-500">Model:</span>
-                                        <select
-                                            value={model}
-                                            onChange={(e) => setModel(e.target.value)}
-                                            className="bg-zinc-900/60 border border-zinc-800 rounded px-2 py-1 text-zinc-200 focus:outline-none"
-                                        >
-                                            <option value="gpt-6">gpt-6</option>
-                                            <option value="codellama">codellama</option>
-                                            <option value="llama2">llama2</option>
-                                        </select>
-                                    </div>
-                                    <div className="relative">
+                                <div className="grid grid-cols-[minmax(0,1fr)_2rem] items-center gap-2">
+                                    <div className="relative min-w-0">
                                         <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-zinc-500" />
                                         <Input
                                             placeholder="Search messages..."
                                             value={searchTerm}
                                             onChange={(e) => setSearchTerm(e.target.value)}
-                                            className="pl-7 h-8 w-40 bg-zinc-800/50 border-zinc-700/50"
+                                            className="h-8 w-full bg-zinc-800/50 border-zinc-700/50 pl-7"
                                         />
                                     </div>
 
@@ -647,5 +677,6 @@ export const AIChatSidePanel: React.FC<AIChatSidePanelProps> = ({
                 </div>
             </>
         </TooltipProvider>
+        , document.body,
     );
 };

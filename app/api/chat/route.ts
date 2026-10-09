@@ -1,101 +1,71 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  GeminiError,
+  type GeminiMessage,
+  type GeminiMode,
+  generateGeminiContent,
+} from "@/lib/gemini";
 
-interface ChatMessage {
-  role: "user" | "assistant";
-  content: string;
+const MAX_MESSAGE_LENGTH = 20_000;
+const validModes = new Set<GeminiMode>(["chat", "review", "fix", "optimize"]);
+
+function parseHistory(value: unknown): GeminiMessage[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .filter(
+      (message): message is GeminiMessage =>
+        typeof message === "object" &&
+        message !== null &&
+        (message.role === "user" || message.role === "assistant") &&
+        typeof message.content === "string" &&
+        message.content.trim().length > 0,
+    )
+    .slice(-10)
+    .map((message) => ({ ...message, content: message.content.slice(0, MAX_MESSAGE_LENGTH) }));
 }
 
-interface ChatRequest {
-  message: string;
-  history: ChatMessage[];
-}
+export async function POST(request: NextRequest) {
+  let body: { message?: unknown; history?: unknown; mode?: unknown };
 
-async function generateAIResponse(messages: ChatMessage[]): Promise<string> {
-  const systemPrompt = `You are a helpful AI coding assistant. You help developers with:
-- Code explanations and debugging
-- Best practices and architecture advice
-- Writing clean, efficient code
-- Troubleshooting errors
-- Code reviews and optimizations
-
-Always provide clear, practical answers. Use proper code formatting when showing examples.`;
-
-  const fullMessages = [{ role: "system", content: systemPrompt }, ...messages];
-  const prompt = fullMessages
-    .map((msg) => `${msg.role}: ${msg.content}`)
-    .join("\n\n");
-
-  const response = await fetch("http://localhost:11434/api/generate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "codellama:latest",
-      prompt,
-      stream: false,
-      options: {
-        temperature: 0.7,
-        max_tokens: 1000,
-        top_p: 0.9,
-      },
-    }),
-  });
-
-  const data = await response.json();
-
-  if (!data.response) {
-    throw new Error("No response from AI model");
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON request body." }, { status: 400 });
   }
 
-  return data.response.trim();
-}
+  const message = typeof body.message === "string" ? body.message.trim() : "";
+  if (!message || message.length > MAX_MESSAGE_LENGTH) {
+    return NextResponse.json(
+      { error: `Message must be between 1 and ${MAX_MESSAGE_LENGTH} characters.` },
+      { status: 400 },
+    );
+  }
 
-export async function POST(req: NextRequest) {
+  const mode: GeminiMode =
+    typeof body.mode === "string" && validModes.has(body.mode as GeminiMode)
+      ? (body.mode as GeminiMode)
+      : "chat";
+
   try {
-    const body: ChatRequest = await req.json();
-    const { message, history = [] } = body;
-
-    if (!message || typeof message !== "string") {
-      return NextResponse.json(
-        { error: "Message is required and must be a string" },
-        { status: 400 },
-      );
-    }
-
-    const validHistory = Array.isArray(history)
-      ? history.filter(
-          (msg) =>
-            msg &&
-            typeof msg === "object" &&
-            typeof msg.role === "string" &&
-            typeof msg.content === "string" &&
-            ["user", "assistant"].includes(msg.role),
-        )
-      : [];
-
-    const recentHistory = validHistory.slice(-10);
-    const messages: ChatMessage[] = [
-      ...recentHistory,
-      { role: "user", content: message },
-    ];
-
-    const aiResponse = await generateAIResponse(messages);
+    const result = await generateGeminiContent({
+      prompt: message,
+      history: parseHistory(body.history),
+      mode,
+      systemInstruction:
+        "You are VibeCode's AI coding assistant. Give precise, practical development help. Use Markdown only when it improves clarity.",
+    });
 
     return NextResponse.json({
-      response: aiResponse,
-      timestamp: new Date().toISOString(),
+      response: result.text,
+      model: result.model,
+      tokens: result.tokens,
     });
   } catch (error) {
-    console.error("Chat API Error:", error);
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-
-    return NextResponse.json(
-      {
-        error: "Failed to generate AI response",
-        details: errorMessage,
-        timestamp: new Date().toISOString(),
-      },
-      { status: 500 },
-    );
+    const geminiError =
+      error instanceof GeminiError
+        ? error
+        : new GeminiError("Unable to generate a response.", 502);
+    return NextResponse.json({ error: geminiError.message }, { status: geminiError.status });
   }
 }

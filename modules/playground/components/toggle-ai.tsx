@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,18 +15,15 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { 
   Bot, 
-  Code, 
   FileText, 
-  Import, 
   Loader2,
   Power,
   PowerOff,
-  Braces,
-  Variable
 } from "lucide-react";
 import React from "react";
 import { cn } from "@/lib/utils";
 import { AIChatSidePanel } from "@/modules/ai-chat/components/ai-chat-sidebarpanel";
+import { IDE_OPEN_AI_CHAT_EVENT } from "../lib/ide-events";
 
 
 
@@ -48,6 +45,12 @@ const ToggleAI: React.FC<ToggleAIProps> = ({
   activeFeature,
 }) => {
   const [isChatOpen, setIsChatOpen] = useState(false);
+
+  useEffect(() => {
+    const openChat = () => setIsChatOpen(true);
+    window.addEventListener(IDE_OPEN_AI_CHAT_EVENT, openChat);
+    return () => window.removeEventListener(IDE_OPEN_AI_CHAT_EVENT, openChat);
+  }, []);
 
   return (
     <>

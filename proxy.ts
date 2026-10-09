@@ -32,5 +32,7 @@ export default auth((request) => {
 });
 
 export const config = {
-  matcher: ["/((?!.+\\.[\\w]+$|_next).*)", "/", "/(api|trpc)(.*)"],
+  // NextAuth owns its own API endpoints. Running them through the auth proxy
+  // can redirect /api/auth/session to the sign-in page, which returns HTML.
+  matcher: ["/((?!api/auth|.+\\.[\\w]+$|_next).*)"],
 };

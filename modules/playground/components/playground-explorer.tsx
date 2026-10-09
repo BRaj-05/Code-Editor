@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   ChevronRight,
   File,
@@ -46,6 +47,18 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  IDE_OPEN_AI_CHAT_EVENT,
+  IDE_QUICK_OPEN_EVENT,
+  IDE_RUN_EVENT,
+} from "../lib/ide-events";
 
 import RenameFolderDialog from "./dialogs/rename-folder-dialog";
 import NewFolderDialog from "./dialogs/new-folder-dialog";
@@ -102,10 +115,12 @@ export function TemplateFileTree({
   onRenameFile,
   onRenameFolder,
 }: TemplateFileTreeProps) {
+  const router = useRouter();
   const isRootFolder = data && typeof data === "object" && "folderName" in data;
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = React.useState(false);
   const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] =
     React.useState(false);
+  const [isExtensionsOpen, setIsExtensionsOpen] = React.useState(false);
 
   const handleAddRootFile = () => {
     setIsNewFileDialogOpen(true);
@@ -145,24 +160,24 @@ export function TemplateFileTree({
         aria-label="Workspace activity"
       >
         {[
-          [File, "Explorer"],
-          [Search, "Search"],
-          [Play, "Run"],
-          [Blocks, "Extensions"],
-          [Sparkles, "AI"],
-        ].map(([Icon, label], index) => {
-          const ActivityIcon = Icon as typeof File;
+          { icon: File, label: "Explorer" },
+          { icon: Search, label: "Search", onClick: () => window.dispatchEvent(new Event(IDE_QUICK_OPEN_EVENT)) },
+          { icon: Play, label: "Run", onClick: () => window.dispatchEvent(new Event(IDE_RUN_EVENT)) },
+          { icon: Blocks, label: "Extensions", onClick: () => setIsExtensionsOpen(true) },
+          { icon: Sparkles, label: "AI", onClick: () => window.dispatchEvent(new Event(IDE_OPEN_AI_CHAT_EVENT)) },
+        ].map(({ icon: ActivityIcon, label, onClick }, index) => {
 
           return (
             <button
-              key={label as string}
+              key={label}
+              onClick={onClick}
               className={`my-1 inline-flex size-7 shrink-0 items-center justify-center rounded-sm text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground ${
                 index === 0
                   ? "border-l-2 border-red-500 bg-sidebar-accent text-sidebar-accent-foreground"
                   : ""
               }`}
-              aria-label={label as string}
-              title={label as string}
+              aria-label={label}
+              title={label}
             >
               <ActivityIcon size={17} />
             </button>
@@ -170,6 +185,7 @@ export function TemplateFileTree({
         })}
 
         <button
+          onClick={() => router.push("/settings")}
           className="mt-auto inline-flex size-7 items-center justify-center rounded-sm text-sidebar-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
           aria-label="Settings"
           title="Settings"
@@ -257,6 +273,19 @@ export function TemplateFileTree({
         onClose={() => setIsNewFolderDialogOpen(false)}
         onCreateFolder={handleCreateFolder}
       />
+      <Dialog open={isExtensionsOpen} onOpenChange={setIsExtensionsOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Built-in integrations</DialogTitle>
+            <DialogDescription>
+              Monaco Editor, WebContainer, Xterm, Gemini, and the React, Next.js, Vue, Angular, Express, and Hono starters are included.
+            </DialogDescription>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Extension marketplace installation is not supported in this browser-based editor.
+          </p>
+        </DialogContent>
+      </Dialog>
     </Sidebar>
   );
 }

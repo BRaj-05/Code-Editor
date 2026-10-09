@@ -65,6 +65,8 @@ import { getRuntime } from "@/modules/webcontainers/lib/runtime";
 
 import { transformToWebContainerFormat } from "@/modules/webcontainers/hooks/transformer";
 
+import { IDE_RUN_EVENT } from "@/modules/playground/lib/ide-events";
+
 import {
   TemplateFile,
   TemplateFolder,
@@ -249,6 +251,30 @@ const MainPlaygroundPage = () => {
 
   const lastSyncedContent = useRef<Map<string, string>>(new Map());
 
+  const runProject = useCallback(() => {
+    if (!instance || !templateData) return;
+    void getRuntime(instance).sync(
+      transformToWebContainerFormat(templateData),
+      true,
+    );
+  }, [instance, templateData]);
+
+  useEffect(() => {
+    const handleRun = () => runProject();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "F5") {
+        event.preventDefault();
+        runProject();
+      }
+    };
+    window.addEventListener(IDE_RUN_EVENT, handleRun);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener(IDE_RUN_EVENT, handleRun);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [runProject]);
+
   /*
    * Tell file explorer which
    * project is currently open.
@@ -290,6 +316,16 @@ const MainPlaygroundPage = () => {
       JSON.stringify(settings),
     );
   };
+
+  useEffect(() => {
+    const updateFromSettingsPage = (event: Event) => {
+      const nextSettings = (event as CustomEvent<EditorSettings>).detail;
+      if (!nextSettings) return;
+      setEditorSettings({ ...defaultIdeSettings, ...nextSettings });
+    };
+    window.addEventListener("vibecode:editor-settings-change", updateFromSettingsPage);
+    return () => window.removeEventListener("vibecode:editor-settings-change", updateFromSettingsPage);
+  }, []);
 
   /*
    * FILE EXPLORER ACTIONS
@@ -893,13 +929,7 @@ const MainPlaygroundPage = () => {
                 <IdeCommandCenter
                   files={listProjectFiles(templateData)}
                   onOpenFile={handleFileSelect}
-                  onRun={() =>
-                    instance &&
-                    void getRuntime(instance).sync(
-                      transformToWebContainerFormat(templateData),
-                      true,
-                    )
-                  }
+                  onRun={runProject}
                   onTogglePreview={() => setIsPreviewVisible((value) => !value)}
                   onToggleTerminal={() =>
                     window.dispatchEvent(
@@ -1341,7 +1371,7 @@ const MainPlaygroundPage = () => {
                             aiSuggestions.rejectSuggestion(editor)
                           }
                           onTriggerSuggestion={(type, editor) =>
-                            aiSuggestions.fetchSuggestion(type, editor)
+                            aiSuggestions.fetchSuggestion(type, editor, activeFile?.path)
                           }
                         />
                       </div>

@@ -173,12 +173,6 @@ export const PlaygroundEditor = ({
     const currentSuggestion = currentSuggestionRef.current
 
     try {
-      // Clean the suggestion text (remove \r characters)
-      const cleanSuggestionText = currentSuggestion.text.replace(/\r/g, "")
-
-      console.log("ACCEPTING suggestion:", cleanSuggestionText.substring(0, 50) + "...")
-
-      // Get current cursor position to validate
       const currentPosition = editor.getPosition()
       const suggestionPos = currentSuggestion.position
 
@@ -192,39 +186,8 @@ export const PlaygroundEditor = ({
         return false
       }
 
-      // Insert the suggestion text at the correct position
-      const range = new monaco.Range(suggestionPos.line, suggestionPos.column, suggestionPos.line, suggestionPos.column)
-
-      // Use executeEdits to insert the text
-      const success = editor.executeEdits("ai-suggestion-accept", [
-        {
-          range: range,
-          text: cleanSuggestionText,
-          forceMoveMarkers: true,
-        },
-      ])
-
-      if (!success) {
-        console.error("Failed to execute edit")
-        return false
-      }
-
-      // Calculate new cursor position
-      const lines = cleanSuggestionText.split("\n")
-      const endLine = suggestionPos.line + lines.length - 1
-      const endColumn =
-        lines.length === 1 ? suggestionPos.column + cleanSuggestionText.length : lines[lines.length - 1].length + 1
-
-      // Move cursor to end of inserted text
-      editor.setPosition({ lineNumber: endLine, column: endColumn })
-
-      console.log("SUCCESS: Suggestion accepted, new position:", `${endLine}:${endColumn}`)
-
-      // Clear the suggestion
-      clearCurrentSuggestion()
-
-      // Call the parent's accept handler
       onAcceptSuggestion(editor, monaco)
+      clearCurrentSuggestion()
 
       return true
     } catch (error) {
@@ -318,6 +281,13 @@ export const PlaygroundEditor = ({
 
     editor.updateOptions({
       ...defaultEditorOptions,
+      fontSize: editorOptions?.fontSize ?? defaultEditorOptions.fontSize,
+      wordWrap: editorOptions?.wordWrap ?? defaultEditorOptions.wordWrap,
+      minimap: {
+        ...defaultEditorOptions.minimap,
+        enabled: editorOptions?.minimap ?? defaultEditorOptions.minimap.enabled,
+      },
+      tabSize: editorOptions?.tabSize ?? defaultEditorOptions.tabSize,
       // Enable inline suggestions but with specific settings to prevent conflicts
       inlineSuggest: {
         enabled: true,
@@ -503,6 +473,19 @@ export const PlaygroundEditor = ({
   useEffect(() => {
     updateEditorLanguage()
   }, [activeFile])
+
+  useEffect(() => {
+    if (!editorRef.current) return
+    editorRef.current.updateOptions({
+      fontSize: editorOptions?.fontSize ?? defaultEditorOptions.fontSize,
+      wordWrap: editorOptions?.wordWrap ?? defaultEditorOptions.wordWrap,
+      minimap: {
+        ...defaultEditorOptions.minimap,
+        enabled: editorOptions?.minimap ?? defaultEditorOptions.minimap.enabled,
+      },
+      tabSize: editorOptions?.tabSize ?? defaultEditorOptions.tabSize,
+    })
+  }, [editorOptions])
 
   // Cleanup on unmount
   useEffect(() => {
