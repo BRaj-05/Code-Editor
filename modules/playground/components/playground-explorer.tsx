@@ -14,7 +14,6 @@ import {
   Edit3,
   Search,
   Play,
-  Blocks,
   Sparkles,
   Settings,
   RefreshCw,
@@ -47,13 +46,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   IDE_OPEN_AI_CHAT_EVENT,
   IDE_QUICK_OPEN_EVENT,
@@ -120,7 +112,6 @@ export function TemplateFileTree({
   const [isNewFileDialogOpen, setIsNewFileDialogOpen] = React.useState(false);
   const [isNewFolderDialogOpen, setIsNewFolderDialogOpen] =
     React.useState(false);
-  const [isExtensionsOpen, setIsExtensionsOpen] = React.useState(false);
 
   const handleAddRootFile = () => {
     setIsNewFileDialogOpen(true);
@@ -163,7 +154,6 @@ export function TemplateFileTree({
           { icon: File, label: "Explorer" },
           { icon: Search, label: "Search", onClick: () => window.dispatchEvent(new Event(IDE_QUICK_OPEN_EVENT)) },
           { icon: Play, label: "Run", onClick: () => window.dispatchEvent(new Event(IDE_RUN_EVENT)) },
-          { icon: Blocks, label: "Extensions", onClick: () => setIsExtensionsOpen(true) },
           { icon: Sparkles, label: "AI", onClick: () => window.dispatchEvent(new Event(IDE_OPEN_AI_CHAT_EVENT)) },
         ].map(({ icon: ActivityIcon, label, onClick }, index) => {
 
@@ -273,19 +263,6 @@ export function TemplateFileTree({
         onClose={() => setIsNewFolderDialogOpen(false)}
         onCreateFolder={handleCreateFolder}
       />
-      <Dialog open={isExtensionsOpen} onOpenChange={setIsExtensionsOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Built-in integrations</DialogTitle>
-            <DialogDescription>
-              Monaco Editor, WebContainer, Xterm, Gemini, and the React, Next.js, Vue, Angular, Express, and Hono starters are included.
-            </DialogDescription>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Extension marketplace installation is not supported in this browser-based editor.
-          </p>
-        </DialogContent>
-      </Dialog>
     </Sidebar>
   );
 }
