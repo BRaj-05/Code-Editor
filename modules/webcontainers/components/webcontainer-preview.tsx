@@ -10,7 +10,6 @@ import {
 
 import {
   ChevronDown,
-  ExternalLink,
   LoaderCircle,
   Monitor,
   Play,
@@ -524,43 +523,6 @@ export default function WebContainerPreview({
           "
         />
 
-        {/* OPEN NEW TAB */}
-
-        <button
-          title="Open in new tab"
-          aria-label="Open preview in new tab"
-          disabled={!state.url}
-          onClick={() =>
-            window.open(
-              state.url,
-              "_blank",
-              "noopener,noreferrer",
-            )
-          }
-          className="
-            flex
-            h-7
-            w-7
-            items-center
-            justify-center
-            rounded-md
-            text-zinc-500
-            transition-all
-            duration-150
-
-            hover:bg-white/[0.06]
-            hover:text-zinc-100
-
-            active:scale-90
-
-            disabled:pointer-events-none
-            disabled:opacity-30
-          "
-        >
-          <ExternalLink
-            size={14}
-          />
-        </button>
       </div>
 
       {/* =========================
